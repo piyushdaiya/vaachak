@@ -1,0 +1,109 @@
+# Vaachak (वाचक) 📖🤖
+
+**Vaachak** (derived from the Hindi/Sanskrit word for "Reader" or "Speaker") is a next-generation Android EPUB reader specifically optimized for E-Ink displays (like the Onyx Boox).
+
+It seamlessly bridges traditional reading with advanced multimodal AI. By leveraging the **Readium 3.1.2** engine and intercepting native Android text selection, Vaachak allows readers to instantly explain complex terms, visualize scenes with generative art, and recall character histories—all without leaving the page.
+
+## ✨ Features
+* **E-Ink Optimized UI:** High contrast, pure Jetpack Compose UI designed for zero-ghosting on E-Ink displays.
+* **Context-Aware Explanations (Gemini 2.5 Flash):** Understands the exact paragraph context of highlighted text.
+* **"Who is this?" (Spoiler-Free):** Uses the book's title and author metadata to explain who a character is *strictly up to the point you are reading*, avoiding future plot spoilers.
+* **On-Demand Visualization:** Transforms selected text into minimalist, high-contrast line art using Cloudflare Workers (Stable Diffusion).
+* **Self-Healing AI Pipeline:** If the image generation API fails, the app automatically falls back to Gemini to provide a vivid text description instead.
+* **Secure API Configuration:** Bring Your Own Keys (BYOK). All API keys and endpoints are configured directly within the app's settings—no hardcoded secrets.
+
+## 🏗️ Architecture
+Vaachak is built using Modern Android Development (MAD) standards and Clean Architecture principles:
+* **UI Layer:** Jetpack Compose, Material 3, Coroutines/Flows.
+* **Reading Engine:** Readium 3.1.2 (Kotlin) utilizing the `EpubNavigatorFactory` pattern.
+* **Dependency Injection:** Dagger Hilt.
+* **Local Storage:** Android DataStore for secure preference persistence.
+* **Networking/AI Layer:** Retrofit 2 + OkHttp for dynamic routing between Google Generative AI (Gemini) and Cloudflare Workers.
+
+## 🚀 How to Build and Run
+
+### Prerequisites
+* Android Studio (Koala or newer) / IntelliJ IDEA
+* An active [Google AI Studio API Key](https://aistudio.google.com/)
+* A Cloudflare Worker configured for Image Generation
+
+### Setup Cloudflare Worker (For Images)
+
+To get image generation working, you need to set up a free "Worker" on Cloudflare.
+
+**📺 Video Reference:**
+For a visual guide on setting up the Cloudflare environment, refer to **[Code With Nomi's Guide](https://www.youtube.com/watch?v=ZSHEL1EUQuE)**.
+
+**📋 Setup Checklist:**
+
+1. **Create Worker:** Go to Cloudflare Dashboard > Compute (Workers) > Create Application > "Hello World" script. Name it something like `kobo-art`.
+2. **Add AI Binding:**
+
+* Go to **Settings > Bindings**.
+* Click **Add**.
+* Choose **Workers AI**.
+* Variable Name: `AI` (Must be uppercase).
+
+3. **Add Secret Key:**
+
+* Go to **Settings > Variables and Secrets**.
+* Add a variable named `API_KEY`.
+* Value: Create your own password (e.g., `MySuperSecretPassword123`). *You will need this later.*
+
+4. **Paste the Code:**
+
+* Click **Edit Code**.
+* Delete the existing code and paste the **Worker Code** below. (This is optimized to accept the specific parameters sent by the Kobo).
+
+**☁️ Cloudflare Worker Code:**
+
+```javascript
+export default {
+  async fetch(request, env) {
+    // 1. Security Check
+    const token = request.headers.get("Authorization");
+    if (token !== `Bearer ${env.API_KEY}`) {
+      return new Response("Unauthorized", { status: 403 });
+    }
+
+    // 2. Get Input from Kobo
+    // This allows the Kobo to specify width, height, and steps dynamically
+    const inputs = await request.json();
+
+    // 3. Run AI Model
+    // We use SDXL Lightning for speed. You can also use '@cf/stabilityai/stable-diffusion-xl-base-1.0'
+    const response = await env.AI.run(
+      "@cf/bytedance/stable-diffusion-xl-base-1.0",
+      inputs
+    );
+
+    // 4. Return Image
+    return new Response(response, {
+      headers: { "content-type": "image/png" },
+    });
+  },
+};
+
+```
+
+5. **Deploy:** Click "Deploy". Copy your Worker URL (e.g., `https://kobo-art.yourname.workers.dev`).
+
+### Setup
+1. Clone the repository:
+   ```bash
+   git clone [https://github.com/yourusername/vaachak.git](https://github.com/yourusername/vaachak.git)
+
+2. Build and Install via Terminal:
+   ```bash
+   ./gradlew installDebug
+3. Open the Vaachak app on your device.
+
+4. Tap the Settings (Gear) Icon in the top right.
+
+5. Enter your Gemini API Key, Cloudflare Worker URL, and Auth Token. (Data is stored securely on your local device).
+
+### 📦 Download APK
+Pre-compiled APKs (both Debug and Release versions) can be found in the Releases section of this repository.
+
+### 📄 License
+This project is open-source and available under the MIT License.

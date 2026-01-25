@@ -1,0 +1,26 @@
+# Gradle and Android Studio
+*.iml
+.gradle
+/local.properties
+/.idea/
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+
+# Module specific build folders
+*/build/
+
+# Do not include APKs in the source tree (we will use GitHub Releases for this)
+*.apk
+*.ap_
+*.aab
+
+# Keystore files
+*.jks
+*.keystore
+
+# DO NOT UPLOAD API KEYS
+# Assuming your keys are here. If they are in local.properties, they are already ignored above.
+AppConfig.kt
