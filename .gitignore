@@ -25,3 +25,5 @@
 # DO NOT UPLOAD API KEYS
 # Assuming your keys are here. If they are in local.properties, they are already ignored above.
 AppConfig.kt
+
+*.txt
