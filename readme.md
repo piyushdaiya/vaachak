@@ -1,6 +1,6 @@
 # Vaachak (वाचक) 📖🤖
 
-**Vaachak** (derived from the Hindi/Sanskrit word for "Reader" or "Speaker") is a next-generation Android EPUB reader specifically optimized for E-Ink displays (like the Onyx Boox).
+**Vaachak** (derived from the Hindi/Sanskrit word for "Reader") is a next-generation Android EPUB reader specifically optimized for E-Ink displays (like the Onyx Boox).
 
 It seamlessly bridges traditional reading with advanced multimodal AI. By leveraging the **Readium 3.1.2** engine and intercepting native Android text selection, Vaachak allows readers to instantly explain complex terms, visualize scenes with generative art, and recall character histories—all without leaving the page.
 
