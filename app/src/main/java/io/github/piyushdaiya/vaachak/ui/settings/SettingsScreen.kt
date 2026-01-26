@@ -8,7 +8,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
@@ -20,7 +21,13 @@ fun SettingsScreen(
 
     var showSavedMessage by remember { mutableStateOf(false) }
 
-    Column(modifier = Modifier.fillMaxSize().background(Color.White).padding(16.dp)) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.White)
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()) // THE FIX: Allow scrolling
+    ) {
         Text("AI Settings", style = MaterialTheme.typography.headlineMedium)
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -58,7 +65,11 @@ fun SettingsScreen(
         }
 
         if (showSavedMessage) {
-            Text("Settings Saved Successfully!", color = Color.Green, modifier = Modifier.padding(top = 16.dp))
+            Text(
+                "Settings Saved Successfully!",
+                color = Color.Green,
+                modifier = Modifier.padding(top = 16.dp, bottom = 32.dp) // Added bottom padding
+            )
         }
     }
 }

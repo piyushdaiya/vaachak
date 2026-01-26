@@ -94,4 +94,10 @@ dependencies {
 
     implementation("androidx.datastore:datastore-preferences:1.0.0")
     implementation("androidx.navigation:navigation-compose:2.7.7")
+
+    // ROOM DATABASE (Add these lines)
+    val room_version = "2.6.1"
+    implementation("androidx.room:room-runtime:$room_version")
+    implementation("androidx.room:room-ktx:$room_version") // For Coroutines support
+    ksp("androidx.room:room-compiler:$room_version")      // The annotation processor
 }

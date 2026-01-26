@@ -3,6 +3,8 @@ package io.github.piyushdaiya.vaachak.ui.reader
 import android.content.Context
 import android.net.Uri
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import org.readium.r2.shared.publication.Publication
 import org.readium.r2.shared.util.asset.AssetRetriever
 import org.readium.r2.shared.util.http.DefaultHttpClient
@@ -17,31 +19,25 @@ import javax.inject.Singleton
 class ReadiumManager @Inject constructor(
     @param:ApplicationContext private val context: Context
 ) {
-    // 1. Setup the HTTP Client
     private val httpClient = DefaultHttpClient()
+    private val assetRetriever = AssetRetriever(context.contentResolver, httpClient)
 
-    // 2. Setup the Asset Retriever
-    private val assetRetriever = AssetRetriever(
-        contentResolver = context.contentResolver,
-        httpClient = httpClient
+    private val publicationOpener = PublicationOpener(
+        publicationParser = DefaultPublicationParser(
+            context,
+            httpClient,assetRetriever,
+            null
+        )
     )
 
-    // 3. Setup the EPUB Parser (Passing null for PDF factory since we only need EPUB)
-    private val publicationParser = DefaultPublicationParser(
-        context = context,
-        httpClient = httpClient,
-        assetRetriever = assetRetriever,
-        pdfFactory = null
-    )
-
-    // 4. Create the Opener (No named parameters needed here)
-    private val opener = PublicationOpener(
-        publicationParser
-    )
+    // THE CRITICAL PART: This variable MUST be named 'publication' and be public
+    private val _publication = MutableStateFlow<Publication?>(null)
+    val publication = _publication.asStateFlow()
 
     suspend fun openEpubFromUri(uri: Uri): Publication? {
         return try {
             val tempFile = File(context.cacheDir, "current_book.epub")
+
             context.contentResolver.openInputStream(uri)?.use { input ->
                 FileOutputStream(tempFile).use { output ->
                     input.copyTo(output)
@@ -51,12 +47,19 @@ class ReadiumManager @Inject constructor(
             val assetResult = assetRetriever.retrieve(tempFile)
             val asset = assetResult.getOrNull() ?: return null
 
-            // In Readium 3.1.2, getOrNull() returns the Publication directly!
-            opener.open(asset, allowUserInteraction = false).getOrNull()
+            val pub = publicationOpener.open(asset, allowUserInteraction = false).getOrNull()
+
+            _publication.value = pub
+            pub
 
         } catch (e: Exception) {
             e.printStackTrace()
             null
         }
+    }
+
+    fun closePublication() {
+        _publication.value?.close()
+        _publication.value = null
     }
 }

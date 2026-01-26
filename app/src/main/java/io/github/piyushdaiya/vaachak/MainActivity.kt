@@ -1,74 +1,132 @@
 package io.github.piyushdaiya.vaachak
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
-import androidx.appcompat.app.AppCompatActivity // <-- FIXED IMPORT
-import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.ui.Modifier
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.rememberNavController
-import dagger.hilt.android.AndroidEntryPoint
-import io.github.piyushdaiya.vaachak.ui.reader.ReaderScreen
-import io.github.piyushdaiya.vaachak.ui.settings.SettingsScreen
-//v2.0 additions
-import org.readium.r2.navigator.epub.EpubNavigatorFragment
 import android.view.KeyEvent
+import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
+import dagger.hilt.android.AndroidEntryPoint
+import io.github.piyushdaiya.vaachak.ui.highlights.AllHighlightsScreen
+import io.github.piyushdaiya.vaachak.ui.reader.ReaderScreen
+import io.github.piyushdaiya.vaachak.ui.reader.components.VaachakHeader
+import io.github.piyushdaiya.vaachak.ui.settings.SettingsScreen
+import io.github.piyushdaiya.vaachak.ui.theme.VaachakTheme
+import org.readium.r2.navigator.epub.EpubNavigatorFragment
+
 @AndroidEntryPoint
-// THE FIX: Changed from ComponentActivity to AppCompatActivity
 class MainActivity : AppCompatActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val intentUriString = intent?.data?.toString()
+
         setContent {
-            MaterialTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    val navController = rememberNavController()
+            VaachakTheme {
+                var bookUriString by remember { mutableStateOf(intentUriString) }
+                // Navigation States
+                var showSettingsOnHome by remember { mutableStateOf(false) }
+                // NEW: State for showing the highlights screen
+                var showHighlightsScreen by remember { mutableStateOf(false) }
 
-                    NavHost(navController = navController, startDestination = "reader") {
+                val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.OpenDocument()
+                ) { uri: Uri? ->
+                    if (uri != null) {
+                        contentResolver.takePersistableUriPermission(
+                            uri,
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        )
+                        bookUriString = uri.toString()
+                    }
+                }
 
-                        composable("reader") {
-                            ReaderScreen(
-                                onNavigateToSettings = { navController.navigate("settings") }
-                            )
-                        }
+                when {
+                    // CASE A: Book is Open
+                    bookUriString != null -> {
+                        ReaderScreen(
+                            initialUri = bookUriString,
+                            onBack = { bookUriString = null }
+                        )
+                    }
+                    // CASE B: Highlights Screen is Open
+                    showHighlightsScreen -> {
+                        AllHighlightsScreen(onBack = { showHighlightsScreen = false })
+                    }
+                    // CASE C: Home Screen
+                    else -> {
+                        Scaffold(
+                            topBar = {
+                                VaachakHeader(
+                                    title = "Vaachak Library",
+                                    onSettingsClick = { showSettingsOnHome = true }
+                                )
+                            }
+                        ) { padding ->
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(padding),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Button(
+                                        onClick = { launcher.launch(arrayOf("application/epub+zip")) },
+                                        modifier = Modifier.padding(bottom = 16.dp)
+                                    ) {
+                                        Text("Open eBook")
+                                    }
+                                    // NEW BUTTON: My Highlights
+                                    OutlinedButton(onClick = { showHighlightsScreen = true }) {
+                                        Icon(Icons.Default.List, contentDescription = null)
+                                        Spacer(Modifier.width(8.dp))
+                                        Text("My Highlights")
+                                    }
+                                }
 
-                        composable("settings") {
-                            SettingsScreen(
-                                onBack = { navController.popBackStack() }
-                            )
+                                // Show Settings Overlay if clicked
+                                if (showSettingsOnHome) {
+                                    Surface(
+                                        modifier = Modifier.fillMaxSize().zIndex(1f),
+                                        color = Color.White
+                                    ) {
+                                        SettingsScreen(onBack = { showSettingsOnHome = false })
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
         }
     }
-    // THE ADDITION: Native Hardware Button Support
+
+    // Hardware Buttons Logic (Preserved)
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        // 1. Define what keys act as "Page Turns" (Volume Keys + Page Keys)
         val isPageForward = keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || keyCode == KeyEvent.KEYCODE_PAGE_DOWN
         val isPageBackward = keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_PAGE_UP
 
         if (isPageForward || isPageBackward) {
-            // 2. Look for the fragment we tagged in ReaderScreen.kt
             val fragment = supportFragmentManager.findFragmentByTag("EPUB_READER_FRAGMENT")
                     as? EpubNavigatorFragment
 
-            // 3. If the fragment is visible, turn the page natively
             fragment?.let { navigator ->
-                if (isPageForward) {
-                    navigator.goForward(animated = false) // False = Instant E-Ink turn
-                } else {
-                    navigator.goBackward(animated = false)
-                }
-                return true // Consume the event so volume doesn't actually change
+                if (isPageForward) navigator.goForward(animated = false)
+                else navigator.goBackward(animated = false)
+                return true
             }
         }
-
         return super.onKeyDown(keyCode, event)
     }
 }
