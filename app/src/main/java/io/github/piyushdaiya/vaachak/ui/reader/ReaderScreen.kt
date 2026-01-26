@@ -105,12 +105,14 @@ fun ReaderScreen(
                             setBackgroundColor(AndroidColor.WHITE)
                             setLayerType(View.LAYER_TYPE_SOFTWARE, null)
 
-                            val existingFragment = activity.supportFragmentManager.findFragmentByTag("reader_fragment")
+                            // MERGE FIX: Check for the NEW tag to reuse the fragment correctly
+                            val existingFragment = activity.supportFragmentManager.findFragmentByTag("EPUB_READER_FRAGMENT")
+
                             if (existingFragment == null) {
                                 // 1. Set up the ENGINE Factory (Defaults)
                                 val navigatorFactory = EpubNavigatorFactory(publication!!)
 
-                                // 2. THE FIX: Set up the UI Fragment Configuration for the Text Selection
+                                // 2. PRESERVED: Set up the UI Fragment Configuration for the Text Selection
                                 val fragmentConfig = EpubNavigatorFragment.Configuration().apply {
                                     selectionActionModeCallback = aiSelectionCallback
                                 }
@@ -119,7 +121,7 @@ fun ReaderScreen(
                                 val fragmentFactory = navigatorFactory.createFragmentFactory(
                                     initialLocator = null,
                                     listener = null,
-                                    configuration = fragmentConfig // <-- Inserted here!
+                                    configuration = fragmentConfig
                                 )
 
                                 activity.supportFragmentManager.fragmentFactory = fragmentFactory
@@ -131,8 +133,9 @@ fun ReaderScreen(
 
                                 currentNavigatorFragment = fragment
 
+                                // 4. THE CHANGE: Tag this "EPUB_READER_FRAGMENT" for MainActivity hardware keys
                                 activity.supportFragmentManager.beginTransaction()
-                                    .replace(this.id, fragment, "reader_fragment")
+                                    .replace(this.id, fragment, "EPUB_READER_FRAGMENT")
                                     .commit()
                             } else {
                                 currentNavigatorFragment = existingFragment as EpubNavigatorFragment
