@@ -5,13 +5,14 @@
 It seamlessly bridges traditional reading with advanced multimodal AI. By leveraging the **Readium 3.1.2** engine and intercepting native Android text selection, Vaachak allows readers to instantly explain complex terms, visualize scenes with generative art, and recall character histories—all without leaving the page.
 
 ## ✨ Features
-* **E-Ink Optimized UI:** High contrast, pure Jetpack Compose UI designed for zero-ghosting on E-Ink displays.
+* **E-Ink Optimized UI:** Global bitonal theme, zero-animation transitions, and custom high-contrast Indication logic to prevent ghosting.
 * **Context-Aware Explanations (Gemini 2.5 Flash):** Understands the exact paragraph context of highlighted text.
-* **"Who is this?" (Spoiler-Free):** Uses the book's title and author metadata to explain who a character is *strictly up to the point you are reading*, avoiding future plot spoilers.
-* **On-Demand Visualization:** Transforms selected text into minimalist, high-contrast line art using Cloudflare Workers (Stable Diffusion).
+* **AI Integration**: Contextual "Explain," "Character Investigation," and "Visualize" actions powered by Gemini and Cloudflare Workers.
 * **Self-Healing AI Pipeline:** If the image generation API fails, the app automatically falls back to Gemini to provide a vivid text description instead.
 * **Secure API Configuration:** Bring Your Own Keys (BYOK). All API keys and endpoints are configured directly within the app's settings—no hardcoded secrets.
 * **Progress Tracking**: Automatic persistence of reading percentage and page numbers.
+* **Deep-Link Highlights**: Navigate directly to the exact page of a highlight from a centralized listing using Readium Locators.
+* **Dual-Section Bookshelf**: A dedicated "Continue Reading" horizontal carousel for active books and a compact, searchable grid for the main library.
 
 ## 🏗️ Architecture
 Vaachak is built using Modern Android Development (MAD) standards and Clean Architecture principles:
@@ -21,6 +22,7 @@ Vaachak is built using Modern Android Development (MAD) standards and Clean Arch
 * **Local Storage:** Android DataStore for secure preference persistence.
 * **Database**: [Room](https://developer.android.com/training/data-storage/room)
 * **Image Loading**: [Coil](https://coil-kt.github.io/coil/)
+* **Async**: Kotlin Coroutines & Flow
 * **Networking/AI Layer:** Retrofit 2 + OkHttp for dynamic routing between Google Generative AI (Gemini) and Cloudflare Workers.
 
 📂 Project Structure
