@@ -8,7 +8,7 @@
 /captures
 .externalNativeBuild
 .cxx
-./.kotlin/
+.kotlin
 
 # Module specific build folders
 */build/
