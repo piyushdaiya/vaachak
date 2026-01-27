@@ -14,6 +14,10 @@ import java.io.File
 import java.io.FileOutputStream
 import javax.inject.Inject
 import javax.inject.Singleton
+import android.graphics.Bitmap
+import org.readium.r2.shared.publication.services.cover
+import org.readium.r2.shared.publication.services.positions
+
 
 @Singleton
 class ReadiumManager @Inject constructor(
@@ -48,7 +52,9 @@ class ReadiumManager @Inject constructor(
             val asset = assetResult.getOrNull() ?: return null
 
             val pub = publicationOpener.open(asset, allowUserInteraction = false).getOrNull()
-
+            pub?.let {
+                it.positions()
+            }
             _publication.value = pub
             pub
 
@@ -61,5 +67,14 @@ class ReadiumManager @Inject constructor(
     fun closePublication() {
         _publication.value?.close()
         _publication.value = null
+    }
+
+    suspend fun getPublicationCover(publication: org.readium.r2.shared.publication.Publication): Bitmap? {
+        return try {
+            // This is the suspending Readium 3.1.2 service call
+            publication.cover()
+        } catch (e: Exception) {
+            null
+        }
     }
 }

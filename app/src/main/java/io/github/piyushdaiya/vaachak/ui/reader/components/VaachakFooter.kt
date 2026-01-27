@@ -1,24 +1,28 @@
 package io.github.piyushdaiya.vaachak.ui.reader.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import org.readium.r2.shared.publication.Locator
 
 @Composable
-fun VaachakFooter(progress: String = "Page 1") {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color.White)
-            .padding(16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
+fun VaachakFooter(pageInfo: String) {
+    BottomAppBar(
+        containerColor = Color.White,
+        modifier = Modifier.height(56.dp)
     ) {
-        Text(text = "100%", color = Color.Black)
-        Text(text = progress, color = Color.Black)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = pageInfo,
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.Gray
+            )
+        }
     }
 }
-

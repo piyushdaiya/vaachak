@@ -10,6 +10,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
@@ -20,12 +21,13 @@ fun SettingsScreen(
     val cfToken by viewModel.cfToken.collectAsState()
 
     var showSavedMessage by remember { mutableStateOf(false) }
-
+    val keyboardController = LocalSoftwareKeyboardController.current
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.White)
             .padding(16.dp)
+            .imePadding() // FIX 2.2: Push content up when keyboard opens
             .verticalScroll(rememberScrollState()) // THE FIX: Allow scrolling
     ) {
         Text("AI Settings", style = MaterialTheme.typography.headlineMedium)
@@ -59,6 +61,7 @@ fun SettingsScreen(
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             TextButton(onClick = onBack) { Text("Back to Reader") }
             Button(onClick = {
+                keyboardController?.hide()
                 viewModel.saveSettings()
                 showSavedMessage = true
             }) { Text("Save Settings") }

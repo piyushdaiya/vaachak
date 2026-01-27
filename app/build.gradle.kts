@@ -100,4 +100,5 @@ dependencies {
     implementation("androidx.room:room-runtime:$room_version")
     implementation("androidx.room:room-ktx:$room_version") // For Coroutines support
     ksp("androidx.room:room-compiler:$room_version")      // The annotation processor
+    implementation("io.coil-kt:coil-compose:2.5.0")
 }

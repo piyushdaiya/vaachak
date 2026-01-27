@@ -9,6 +9,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import io.github.piyushdaiya.vaachak.data.local.AppDatabase
 import io.github.piyushdaiya.vaachak.data.local.HighlightDao
+import io.github.piyushdaiya.vaachak.data.local.BookDao
 import javax.inject.Singleton
 
 @Module
@@ -22,12 +23,19 @@ object DatabaseModule {
             context,
             AppDatabase::class.java,
             "vaachak_db"
-        ).build()
+        )
+            .fallbackToDestructiveMigration()
+            .build()
     }
 
     @Provides
     fun provideHighlightDao(database: AppDatabase): HighlightDao {
         return database.highlightDao()
+    }
+    @Provides
+    @Singleton
+    fun provideBookDao(database: AppDatabase): BookDao {
+        return database.bookDao() // Now the function is used!
     }
 }
 

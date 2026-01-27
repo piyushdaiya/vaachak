@@ -11,6 +11,7 @@ It seamlessly bridges traditional reading with advanced multimodal AI. By levera
 * **On-Demand Visualization:** Transforms selected text into minimalist, high-contrast line art using Cloudflare Workers (Stable Diffusion).
 * **Self-Healing AI Pipeline:** If the image generation API fails, the app automatically falls back to Gemini to provide a vivid text description instead.
 * **Secure API Configuration:** Bring Your Own Keys (BYOK). All API keys and endpoints are configured directly within the app's settings—no hardcoded secrets.
+* **Progress Tracking**: Automatic persistence of reading percentage and page numbers.
 
 ## 🏗️ Architecture
 Vaachak is built using Modern Android Development (MAD) standards and Clean Architecture principles:
@@ -18,7 +19,18 @@ Vaachak is built using Modern Android Development (MAD) standards and Clean Arch
 * **Reading Engine:** Readium 3.1.2 (Kotlin) utilizing the `EpubNavigatorFactory` pattern.
 * **Dependency Injection:** Dagger Hilt.
 * **Local Storage:** Android DataStore for secure preference persistence.
+* **Database**: [Room](https://developer.android.com/training/data-storage/room)
+* **Image Loading**: [Coil](https://coil-kt.github.io/coil/)
 * **Networking/AI Layer:** Retrofit 2 + OkHttp for dynamic routing between Google Generative AI (Gemini) and Cloudflare Workers.
+
+📂 Project Structure
+* **ui/bookshelf:** Dashboard, book grid, and progress indicators.
+
+* **ui/reader:** The core Readium navigator implementation and listeners.
+
+* **ui/highlights:** Management of saved annotations and grouping logic.
+
+* **data/**: Room entities, DAOs, and the AI repository layer.
 
 ## 🚀 How to Build and Run
 
@@ -107,3 +119,5 @@ Pre-compiled APKs (both Debug and Release versions) can be found in the Releases
 
 ### 📄 License
 This project is open-source and available under the MIT License.
+
+Built with ❤️ and Google Gemini by Piyush Daiya
