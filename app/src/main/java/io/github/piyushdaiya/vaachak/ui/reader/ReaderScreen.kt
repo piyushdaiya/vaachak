@@ -41,6 +41,7 @@ import org.readium.r2.shared.util.AbsoluteUrl
 @Composable
 fun ReaderScreen(
     initialUri: String?,
+    initialLocatorJson: String?,
     onBack: () -> Unit,
     viewModel: ReaderViewModel = hiltViewModel()
 ) {
@@ -61,6 +62,12 @@ fun ReaderScreen(
     val scope = rememberCoroutineScope()
     var currentNavigatorFragment by remember { mutableStateOf<EpubNavigatorFragment?>(null) }
     val initialLocator by viewModel.initialLocator.collectAsState()
+    LaunchedEffect(initialUri, initialLocatorJson) {
+        if (initialUri != null) {
+            viewModel.setInitialLocation(initialLocatorJson)
+            viewModel.onFileSelected(initialUri.toUri())
+        }
+    }
     // Readium 2.4.0+ Compliant Listener
     val navListener = remember {
         object : EpubNavigatorFragment.Listener {
@@ -86,8 +93,10 @@ fun ReaderScreen(
         }
     }
 
-    LaunchedEffect(initialUri) {
-        initialUri?.let { viewModel.onFileSelected(it.toUri()) }
+    LaunchedEffect(initialLocatorJson) {
+        if (initialLocatorJson != null) {
+            viewModel.setInitialLocation(initialLocatorJson)
+        }
     }
 
     // Decoration Listener
@@ -186,14 +195,16 @@ fun ReaderScreen(
                         FrameLayout(context).apply {
                             id = View.generateViewId()
 
-                            val existing = activity.supportFragmentManager.findFragmentByTag("EPUB_READER_FRAGMENT")
+                            // Ensure clean fragment transaction
+                            val fm = activity.supportFragmentManager
+                            val existing = fm.findFragmentByTag("EPUB_READER_FRAGMENT")
                             if (existing != null) {
-                                activity.supportFragmentManager.beginTransaction().remove(existing).commitNow()
+                                fm.beginTransaction().remove(existing).commitNow()
                             }
 
                             val factory = EpubNavigatorFactory(publication!!)
                             val fragment = factory.createFragmentFactory(
-                                initialLocator = initialLocator,
+                                initialLocator = initialLocator, // Correctly falls back to saved location
                                 configuration = EpubNavigatorFragment.Configuration().apply {
                                     selectionActionModeCallback = aiSelectionCallback
                                 },
@@ -206,7 +217,7 @@ fun ReaderScreen(
                                 }
                             }
                             currentNavigatorFragment = fragment
-                            activity.supportFragmentManager.beginTransaction()
+                            fm.beginTransaction()
                                 .replace(this.id, fragment, "EPUB_READER_FRAGMENT")
                                 .commit()
                         }

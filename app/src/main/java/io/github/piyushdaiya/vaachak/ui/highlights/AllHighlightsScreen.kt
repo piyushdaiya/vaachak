@@ -24,6 +24,7 @@ import io.github.piyushdaiya.vaachak.data.local.HighlightEntity
 @Composable
 fun AllHighlightsScreen(
     onBack: () -> Unit,
+    onHighlightClick: (String, String) -> Unit,
     viewModel: AllHighlightsViewModel = hiltViewModel()
 ) {
     val groupedHighlights by viewModel.groupedHighlights.collectAsState()
@@ -60,9 +61,13 @@ fun AllHighlightsScreen(
                     items(highlights, key = { it.id }) { highlight ->
                         HighlightItem(
                             highlight = highlight,
+                            onClick = {
+                                // Pass URI and Locator to MainActivity
+                                onHighlightClick(highlight.publicationId, highlight.locatorJson)
+                            },
                             onDelete = { viewModel.deleteHighlight(highlight.id) }
                         )
-                        Divider(color = Color.LightGray, thickness = 0.5.dp)
+                        HorizontalDivider(color = Color.LightGray, thickness = 0.5.dp)
                     }
                 }
             }
@@ -71,24 +76,42 @@ fun AllHighlightsScreen(
 }
 
 @Composable
-fun HighlightItem(highlight: HighlightEntity, onDelete: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+fun HighlightItem(
+    highlight: HighlightEntity,
+    onClick: () -> Unit, // New callback
+    onDelete: () -> Unit
+) {
+    // Surface provides the ripple and click handling
+    Surface(
+        onClick = onClick,
+        color = Color.Transparent,
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Text(
-            text = highlight.text,
-            style = MaterialTheme.typography.bodyMedium,
-            maxLines = 3,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-            color = Color.DarkGray
-        )
-        IconButton(onClick = onDelete) {
-            Icon(Icons.Default.Delete, contentDescription = "Delete Highlight", tint = Color.Red)
+        Row(
+            modifier = Modifier
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = highlight.text,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                    color = Color.DarkGray
+                )
+                // Optional: show a timestamp or "Jump to page" hint
+                Text(
+                    text = "Tap to jump to page",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.Gray,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+            IconButton(onClick = onDelete) {
+                Icon(Icons.Default.Delete, contentDescription = "Delete Highlight", tint = Color.Red)
+            }
         }
     }
 }

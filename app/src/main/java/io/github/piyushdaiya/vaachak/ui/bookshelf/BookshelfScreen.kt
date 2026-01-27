@@ -6,10 +6,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
@@ -26,19 +22,32 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
-import io.github.piyushdaiya.vaachak.data.local.BookEntity
-import androidx.compose.ui.graphics.StrokeCap
-
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items // CRITICAL: This fixes "Unresolved reference items"
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.OutlinedTextField
+// Ensure you have the collectors
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.material3.HorizontalDivider // Ensure you're using M3 Divider
+import androidx.compose.material.icons.filled.Sort
+import androidx.compose.material.icons.filled.Check
 
 @Composable
 fun BookshelfScreen(
     onBookClick: (String) -> Unit,
     viewModel: BookshelfViewModel = hiltViewModel()
 ) {
-    val books by viewModel.allBooks.collectAsState() // Renamed to allBooks for clarity
-    val recentBook by viewModel.recentBook.collectAsState() // The logic we added to ViewModel
+    val allBooks by viewModel.allBooks.collectAsState()
+    val searchQuery by viewModel.searchQuery.collectAsState()
+    val libraryBooks by viewModel.filteredLibraryBooks.collectAsState()
+    val continueReadingBooks by viewModel.recentBooks.collectAsState() // Plural based on refactor
     val snackbarHostState = remember { SnackbarHostState() }
     val message by viewModel.snackbarMessage
+    val sortOrder by viewModel.sortOrder.collectAsState()
+    var showSortMenu by remember { mutableStateOf(false) }
 
     LaunchedEffect(message) {
         message?.let {
@@ -50,9 +59,7 @@ fun BookshelfScreen(
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
-        if (uri != null) {
-            viewModel.importBook(uri)
-        }
+        uri?.let { viewModel.importBook(it) }
     }
 
     Scaffold(
@@ -69,7 +76,7 @@ fun BookshelfScreen(
             }
         }
     ) { padding ->
-        if (books.isEmpty()) {
+        if (allBooks.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize().padding(padding),
                 contentAlignment = Alignment.Center
@@ -81,135 +88,178 @@ fun BookshelfScreen(
                 )
             }
         } else {
-            // Using LazyVerticalGrid with span logic to allow the Recent Card to take full width
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                contentPadding = PaddingValues(16.dp),
-                modifier = Modifier
-                    .padding(padding)
-                    .fillMaxSize()
-                    .background(Color.White)
+            LazyColumn(
+                modifier = Modifier.padding(padding).fillMaxSize().background(Color.White),
+                contentPadding = PaddingValues(bottom = 88.dp)
             ) {
-                // --- SECTION: CONTINUE READING ---
-                recentBook?.let { book ->
-                    item(span = { GridItemSpan(2) }) {
-                        Column(modifier = Modifier.padding(bottom = 16.dp)) {
-                            Text(
-                                text = "Continue Reading",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            )
-                            RecentBookCard(
-                                book = book,
-                                onClick = { onBookClick(book.uriString) }
-                            )
-                            Spacer(Modifier.height(16.dp))
-                            Divider(color = Color.LightGray.copy(alpha = 0.5f))
-                            Spacer(Modifier.height(16.dp))
-                            Text(
-                                text = "Your Library",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            )
+                // --- CONTINUE READING ---
+                // We only show this if the user isn't currently searching
+                if (continueReadingBooks.isNotEmpty() && searchQuery.isEmpty()) {
+                    item {
+                        Text(
+                            text = "Continue Reading",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                        LazyRow(
+                            contentPadding = PaddingValues(horizontal = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(continueReadingBooks, key = { it.id }) { book ->
+                                BookCard(
+                                    title = book.title,
+                                    author = book.author,
+                                    coverPath = book.coverPath,
+                                    progress = book.progress,
+                                    isCompact = true,
+                                    onClick = { onBookClick(book.uriString) },
+                                    onDelete = { viewModel.deleteBook(book.id) }
+                                )
+                            }
                         }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp),
+                            thickness = 0.5.dp,
+                            color = Color.LightGray.copy(alpha = 0.5f))
                     }
                 }
 
-                // --- SECTION: ALL BOOKS ---
-                items(books, key = { it.id }) { book ->
-                    BookCard(
-                        title = book.title,
-                        author = book.author,
-                        coverPath = book.coverPath,
-                        progress = book.progress,
-                        onClick = { onBookClick(book.uriString) },
-                        onDelete = { viewModel.deleteBook(book.id) }
-                    )
-                }
-            }
-        }
-    }
-}
+                // --- SEARCH BAR & HEADER (Wrapped in item) ---
+                item {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "My Library",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
 
-@Composable
-fun RecentBookCard(
-    book: BookEntity,
-    onClick: () -> Unit
-) {
-    ElevatedCard(
-        onClick = onClick,
-        colors = CardDefaults.elevatedCardColors(containerColor = Color.White),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            modifier = Modifier
-                .padding(12.dp)
-                .height(IntrinsicSize.Min)
-        ) {
-            // Smaller Cover Thumbnail
-            Box(
-                modifier = Modifier
-                    .size(width = 60.dp, height = 90.dp)
-                    .background(Color.LightGray, MaterialTheme.shapes.small),
-                contentAlignment = Alignment.Center
-            ) {
-                if (book.coverPath != null) {
-                    AsyncImage(
-                        model = book.coverPath,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
+                            Box {
+                                IconButton(onClick = { showSortMenu = true }) {
+                                    Icon(
+                                        Icons.Default.Sort,
+                                        contentDescription = "Sort"
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = showSortMenu,
+                                    onDismissRequest = { showSortMenu = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Title") },
+                                        onClick = { viewModel.updateSortOrder(SortOrder.TITLE); showSortMenu = false },
+                                        leadingIcon = { if(sortOrder == SortOrder.TITLE) Icon(Icons.Default.Check, null) }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Author") },
+                                        onClick = { viewModel.updateSortOrder(SortOrder.AUTHOR); showSortMenu = false },
+                                        leadingIcon = { if(sortOrder == SortOrder.AUTHOR) Icon(Icons.Default.Check, null) }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Recent Added") },
+                                        onClick = { viewModel.updateSortOrder(SortOrder.DATE_ADDED); showSortMenu = false },
+                                        leadingIcon = { if(sortOrder == SortOrder.DATE_ADDED) Icon(Icons.Default.Check, null) }
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // FIX: Added the OutlinedTextField here
+                        OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = { viewModel.updateSearchQuery(it) },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("Search by title...") },
+                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                            trailingIcon = {
+                                if (searchQuery.isNotEmpty()) {
+                                    IconButton(onClick = { viewModel.updateSearchQuery("") }) {
+                                        Icon(Icons.Default.Close, contentDescription = "Clear")
+                                    }
+                                }
+                            },
+                            singleLine = true,
+                            shape = MaterialTheme.shapes.medium
+                        )
+                    }
+                }
+
+                // --- SEARCH RESULTS / LIBRARY GRID ---
+                if (libraryBooks.isEmpty() && searchQuery.isNotEmpty()) {
+                    // 1. NO RESULTS FOUND STATE
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 64.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = null,
+                                modifier = Modifier.size(64.dp),
+                                tint = Color.LightGray
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = "No books found for \"$searchQuery\"",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = Color.Gray
+                            )
+                            TextButton(onClick = { viewModel.updateSearchQuery("") }) {
+                                Text("Clear search")
+                            }
+                        }
+                    }
                 } else {
-                    Text(book.title.take(1), fontWeight = FontWeight.Bold)
+                    // 2. ACTUAL LIBRARY GRID (Existing logic)
+                    val bookRows = libraryBooks.chunked(3)
+                    items(bookRows) { rowBooks ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            for (book in rowBooks) {
+                                Box(modifier = Modifier.weight(1f)) {
+                                    BookCard(
+                                        title = book.title,
+                                        author = book.author,
+                                        coverPath = book.coverPath,
+                                        progress = book.progress,
+                                        isCompact = true,
+                                        onClick = { onBookClick(book.uriString) },
+                                        onDelete = { viewModel.deleteBook(book.id) }
+                                    )
+                                }
+                            }
+                            if (rowBooks.size < 3) {
+                                repeat(3 - rowBooks.size) { Spacer(modifier = Modifier.weight(1f)) }
+                            }
+                        }
+                    }
                 }
             }
-
-            Column(
-                modifier = Modifier
-                    .padding(start = 16.dp)
-                    .fillMaxHeight(),
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text(
-                    text = book.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = book.author,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                LinearProgressIndicator(
-                    progress = book.progress.toFloat(),
-                    modifier = Modifier.fillMaxWidth().height(6.dp),
-                    color = Color(0xFF4CAF50),
-                    trackColor = Color(0xFFE0E0E0),
-                    strokeCap = StrokeCap.Round
-                )
-                Text(
-                    text = "${(book.progress * 100).toInt()}% completed",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.DarkGray,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-            }
         }
+
+
     }
 }
+
 @Composable
 fun BookCard(
     title: String,
     author: String,
     coverPath: String?,
     progress: Double,
+    isCompact: Boolean = false, // Toggle between Hero and Grid view
     onClick: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -217,9 +267,9 @@ fun BookCard(
         onClick = onClick,
         colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
         modifier = Modifier
-            .padding(8.dp)
-            .fillMaxWidth()
-            .aspectRatio(0.7f)
+            .padding(4.dp) // Reduced padding for better density
+            .width(if (isCompact) 110.dp else 150.dp) // Limits horizontal/grid size
+            .wrapContentHeight()
             .clickable(onClick = onClick)
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
@@ -227,7 +277,7 @@ fun BookCard(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f)
+                        .height(if (isCompact) 140.dp else 200.dp) // Fixed heights to limit scrolling
                         .background(Color.LightGray),
                     contentAlignment = Alignment.Center
                 ) {
@@ -241,7 +291,7 @@ fun BookCard(
                     } else {
                         Text(
                             text = title.take(1).uppercase(),
-                            fontSize = 48.sp,
+                            fontSize = if (isCompact) 24.sp else 48.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
@@ -252,7 +302,7 @@ fun BookCard(
                         progress = { progress.toFloat() },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(4.dp)
+                            .height(if (isCompact) 3.dp else 6.dp)
                             .align(Alignment.BottomCenter),
                         color = Color(0xFF4CAF50),
                         trackColor = Color.White.copy(alpha = 0.5f)
@@ -263,8 +313,8 @@ fun BookCard(
                     Text(
                         text = title,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
-                        maxLines = 1,
+                        fontSize = if (isCompact) 12.sp else 14.sp,
+                        maxLines = if (isCompact) 1 else 2,
                         overflow = TextOverflow.Ellipsis,
                         color = Color.Black
                     )
@@ -285,21 +335,20 @@ fun BookCard(
                 }
             }
 
-            // Delete Button Overlay
-            Surface(
+            // Minimalist Delete Button for E-ink/Compact efficiency
+            IconButton(
                 onClick = onDelete,
-                color = Color.Black.copy(alpha = 0.6f),
-                shape = MaterialTheme.shapes.small,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(8.dp)
-                    .size(32.dp)
+                    .padding(2.dp)
+                    .size(if (isCompact) 24.dp else 32.dp)
+                    .background(Color.Black.copy(alpha = 0.4f), shape = MaterialTheme.shapes.small)
             ) {
                 Icon(
                     imageVector = Icons.Default.Delete,
                     contentDescription = "Remove",
                     tint = Color.White,
-                    modifier = Modifier.padding(6.dp)
+                    modifier = Modifier.size(if (isCompact) 14.dp else 18.dp)
                 )
             }
         }

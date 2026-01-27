@@ -3,16 +3,19 @@ package io.github.piyushdaiya.vaachak.ui.settings
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 
 @Composable
 fun SettingsScreen(
@@ -22,20 +25,39 @@ fun SettingsScreen(
     val geminiKey by viewModel.geminiKey.collectAsState()
     val cfUrl by viewModel.cfUrl.collectAsState()
     val cfToken by viewModel.cfToken.collectAsState()
-    // NEW: E-ink state from ViewModel
     val isEinkEnabled by viewModel.isEinkEnabled.collectAsState()
+
     var showSavedMessage by remember { mutableStateOf(false) }
-    val keyboardController = LocalSoftwareKeyboardController.current
-    // ADD THIS LINE - You likely missed initializing the state variable
     var showResetDialog by remember { mutableStateOf(false) }
+    val keyboardController = LocalSoftwareKeyboardController.current
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White)
+            .background(MaterialTheme.colorScheme.background) // Respects Eink/Theme colors
             .padding(16.dp)
-            .imePadding() // FIX 2.2: Push content up when keyboard opens
-            .verticalScroll(rememberScrollState()) // THE FIX: Allow scrolling
+            .imePadding()
+            .verticalScroll(rememberScrollState())
     ) {
+        // --- TOP NAVIGATION ---
+        TextButton(
+            onClick = onBack,
+            modifier = Modifier.padding(bottom = 8.dp),
+            contentPadding = PaddingValues(0.dp) // Align with edge
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Back to My Bookshelf", style = MaterialTheme.typography.labelLarge)
+            }
+        }
+
+        HorizontalDivider(modifier = Modifier.padding(bottom = 16.dp), thickness = 0.5.dp)
+
         // --- DISPLAY SETTINGS ---
         Text("Display Settings", style = MaterialTheme.typography.headlineSmall)
         Spacer(modifier = Modifier.height(8.dp))
@@ -48,7 +70,6 @@ fun SettingsScreen(
                     checked = isEinkEnabled,
                     onCheckedChange = {
                         viewModel.toggleEink(it)
-                        // Settings are usually saved immediately for UI toggles
                         viewModel.saveSettings()
                     }
                 )
@@ -59,14 +80,15 @@ fun SettingsScreen(
         HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), thickness = 0.5.dp)
 
         // --- AI SETTINGS ---
-        Text("AI Settings", style = MaterialTheme.typography.headlineMedium)
+        Text("AI Settings", style = MaterialTheme.typography.headlineSmall)
         Spacer(modifier = Modifier.height(16.dp))
 
         OutlinedTextField(
             value = geminiKey,
             onValueChange = { viewModel.updateGemini(it) },
             label = { Text("Gemini API Key") },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
         )
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -75,7 +97,8 @@ fun SettingsScreen(
             onValueChange = { viewModel.updateCfUrl(it) },
             label = { Text("Cloudflare Worker URL") },
             placeholder = { Text("https://your-worker.workers.dev/") },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
         )
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -83,34 +106,41 @@ fun SettingsScreen(
             value = cfToken,
             onValueChange = { viewModel.updateCfToken(it) },
             label = { Text("Cloudflare Auth Token") },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
         )
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            TextButton(onClick = onBack) { Text("Back to Reader") }
-            Button(onClick = {
+        // --- SAVE ACTION ---
+        Button(
+            onClick = {
                 keyboardController?.hide()
                 viewModel.saveSettings()
                 showSavedMessage = true
-            }) { Text("Save Settings") }
+            },
+            modifier = Modifier.align(Alignment.End)
+        ) {
+            Text("Save All Settings")
         }
 
         if (showSavedMessage) {
             Text(
                 "Settings Saved Successfully!",
-                color = if (isEinkEnabled) Color.Black else Color(0xFF2E7D32),
+                color = if (isEinkEnabled) MaterialTheme.colorScheme.onBackground else Color(0xFF2E7D32),
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(top = 16.dp, bottom = 32.dp) // Added bottom padding
+                modifier = Modifier.padding(top = 16.dp)
             )
-            // Auto-hide message after 3 seconds
             LaunchedEffect(Unit) {
                 kotlinx.coroutines.delay(3000)
                 showSavedMessage = false
             }
         }
+
+        Spacer(modifier = Modifier.height(32.dp))
         HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), thickness = 0.5.dp)
-        Text("Danger Zone", style = MaterialTheme.typography.headlineSmall, color = Color.Red)
+
+        // --- DANGER ZONE ---
+        Text("Danger Zone", style = MaterialTheme.typography.titleMedium, color = Color.Red)
         Spacer(modifier = Modifier.height(8.dp))
 
         OutlinedButton(
@@ -141,6 +171,4 @@ fun SettingsScreen(
             )
         }
     }
-
 }
-

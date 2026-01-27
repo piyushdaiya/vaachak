@@ -37,6 +37,7 @@ import androidx.compose.material.icons.automirrored.filled.List
 class MainActivity : AppCompatActivity() {
     //Access SettingsViewModel at the activity level
     private val settingsViewModel: SettingsViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val intentUriString = intent?.data?.toString()
@@ -53,7 +54,9 @@ class MainActivity : AppCompatActivity() {
                     var currentBookUri by remember { mutableStateOf(intentUriString) }
                     var selectedTab by remember { mutableIntStateOf(0) }
                     var showSettingsOnHome by remember { mutableStateOf(false) }
-
+                    var targetLocator by remember { mutableStateOf<String?>(null) }
+                    // FIX: Add this variable to store the highlight location
+                    var targetHighlightLocator by remember { mutableStateOf<String?>(null) }
                     // System back button handling for Settings overlay
                     if (showSettingsOnHome) {
                         BackHandler {
@@ -66,7 +69,9 @@ class MainActivity : AppCompatActivity() {
                             // --- READER MODE ---
                             ReaderScreen(
                                 initialUri = currentBookUri,
-                                onBack = { currentBookUri = null } // Navigates back to Dashboard
+                                initialLocatorJson = targetLocator,
+                                onBack = { currentBookUri = null
+                                    targetLocator = null } // Navigates back to Dashboard
                             )
                         } else {
                             // --- DASHBOARD MODE ---
@@ -105,7 +110,13 @@ class MainActivity : AppCompatActivity() {
                                 Surface(modifier = Modifier.padding(padding), color = Color.White) {
                                     when (selectedTab) {
                                         0 -> BookshelfScreen(onBookClick = { uri -> currentBookUri = uri })
-                                        1 -> AllHighlightsScreen(onBack = { selectedTab = 0 })
+                                        1 -> AllHighlightsScreen(
+                                            onBack = { selectedTab = 0 },
+                                            onHighlightClick = { uri, locator ->
+                                                targetHighlightLocator = locator
+                                                currentBookUri = uri
+                                            }
+                                        )
                                         2 -> AboutScreen(onBack = { selectedTab = 0 })
                                     }
                                 }

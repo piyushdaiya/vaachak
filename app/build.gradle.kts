@@ -108,4 +108,5 @@ implementation(libs.androidx.foundation)
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.activity:activity-ktx:1.9.0")
+    implementation("androidx.compose.material:material-icons-extended")
 }

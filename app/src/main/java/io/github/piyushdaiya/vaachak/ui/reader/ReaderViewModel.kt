@@ -22,6 +22,7 @@ class ReaderViewModel @Inject constructor(
     private val highlightDao: HighlightDao,
     private val bookDao: BookDao
 ) : ViewModel() {
+    private var pendingJumpLocator: String?=null
     private var initialUri: String? = null
     private var currentSelectedText = ""
 
@@ -52,6 +53,10 @@ class ReaderViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val initialLocator: StateFlow<Locator?> = _initialLocator.asStateFlow()
+    fun setInitialLocation(json: String?) {
+        // Store this so when Readium is ready, you can call navigator.go(locator)
+        this.pendingJumpLocator = json
+    }
     fun onFileSelected(uri: Uri) {
         initialUri = uri.toString()
         viewModelScope.launch {
@@ -60,14 +65,22 @@ class ReaderViewModel @Inject constructor(
 
             // 2. Fetch the book to get saved location
             val book = bookDao.getBookByUri(uri.toString())
-            val savedLocator = book?.lastLocationJson?.let {
-                Locator.fromJSON(org.json.JSONObject(it))
+            // PRIORITY LOGIC: Use pending jump (from highlight) OR saved location
+            val targetJson = pendingJumpLocator ?: book?.lastLocationJson
+
+            val locator = targetJson?.let {
+                try {
+                    Locator.fromJSON(org.json.JSONObject(it))
+                } catch (e: Exception) { null }
             }
-            _initialLocator.value = savedLocator
+
+            _initialLocator.value = locator
 
             // 3. Open the publication
             val pub = readiumManager.openEpubFromUri(uri)
             _publication.value = pub
+            // Clear pending jump so it doesn't affect future sessions
+            pendingJumpLocator = null
         }
     }
 
