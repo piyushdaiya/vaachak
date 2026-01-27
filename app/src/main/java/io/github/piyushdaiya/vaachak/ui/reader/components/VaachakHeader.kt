@@ -1,7 +1,6 @@
 package io.github.piyushdaiya.vaachak.ui.reader.components
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -14,6 +13,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 fun VaachakHeader(
     title: String,
     onBack: () -> Unit,
+    showBackButton: Boolean = true,
     onSettingsClick: () -> Unit
 ) {
     TopAppBar(
@@ -26,12 +26,14 @@ fun VaachakHeader(
             )
         },
         navigationIcon = {
-            IconButton(onClick = onBack) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back to Bookshelf",
-                    tint = Color.Black
-                )
+            if (showBackButton) { // Only show if requested
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = Color.Black
+                    )
+                }
             }
         },
         actions = {

@@ -56,7 +56,8 @@ android {
 }
 
 dependencies {
-// --- ADD THIS LINE ---
+implementation(libs.androidx.foundation)
+    // --- ADD THIS LINE ---
     coreLibraryDesugaring(libs.android.desugar)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
@@ -101,4 +102,10 @@ dependencies {
     implementation("androidx.room:room-ktx:$room_version") // For Coroutines support
     ksp("androidx.room:room-compiler:$room_version")      // The annotation processor
     implementation("io.coil-kt:coil-compose:2.5.0")
+
+    implementation(platform("androidx.compose:compose-bom:2025.01.00")) // Or latest 2026 version
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.foundation:foundation")
+    implementation("androidx.activity:activity-ktx:1.9.0")
 }

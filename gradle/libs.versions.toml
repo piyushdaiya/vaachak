@@ -17,6 +17,7 @@ activityCompose = "1.9.0"
 lifecycleRuntimeKtx = "2.7.0"
 # --- THIS IS THE LINE THAT WAS MISSING ---
 desugar = "2.0.4"
+foundation = "1.10.1"
 [libraries]
 # --- RE-ADDED DESUGAR ---
 android-desugar = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "desugar" }
@@ -41,6 +42,7 @@ androidx-hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navig
 # Networking (Cloudflare AI)
 retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = "retrofit" }
 retrofit-gson = { group = "com.squareup.retrofit2", name = "converter-gson", version.ref = "retrofit" }
+androidx-foundation = { group = "androidx.compose.foundation", name = "foundation", version.ref = "foundation" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

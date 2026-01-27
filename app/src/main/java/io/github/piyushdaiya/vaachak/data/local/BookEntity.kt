@@ -11,5 +11,7 @@ data class BookEntity(
     val uriString: String, // Where the file is located
     val coverPath: String? = null, // Path to cached cover (optional for now)
     val progress: Double = 0.0,
+    val lastLocationJson: String? = null,
+    val addedDate: Long = System.currentTimeMillis(),
     val lastRead: Long = System.currentTimeMillis() // For sorting
 )

@@ -29,6 +29,11 @@ class BookshelfViewModel @Inject constructor(
 
     // FIX: Explicitly type the MutableState to avoid inference errors
     val snackbarMessage: MutableState<String?> = mutableStateOf<String?>(null)
+    val recentBook: StateFlow<BookEntity?> = bookDao.getMostRecentBook()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    val allBooks: StateFlow<List<BookEntity>> = bookDao.getAllBooksSortedByRecent()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // FIX: Explicitly type the StateFlow for better compiler stability
     val books: StateFlow<List<BookEntity>> = bookDao.getAllBooks()
@@ -78,7 +83,9 @@ class BookshelfViewModel @Inject constructor(
                     title = title,
                     author = author,
                     uriString = uri.toString(),
-                    coverPath = savedCoverPath
+                    coverPath = savedCoverPath,
+                    addedDate = System.currentTimeMillis(), // Initial set
+                    lastRead = System.currentTimeMillis()   // Initial set
                 )
                 bookDao.insertBook(newBook)
 

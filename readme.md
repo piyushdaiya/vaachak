@@ -120,4 +120,4 @@ Pre-compiled APKs (both Debug and Release versions) can be found in the Releases
 ### 📄 License
 This project is open-source and available under the MIT License.
 
-Built with ❤️ and Google Gemini by Piyush Daiya
+Built with Google Gemini by Piyush Daiya

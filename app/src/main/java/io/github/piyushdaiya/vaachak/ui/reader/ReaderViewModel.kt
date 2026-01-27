@@ -41,7 +41,8 @@ class ReaderViewModel @Inject constructor(
     val aiResponse = _aiResponse.asStateFlow()
     private val _isImageResponse = MutableStateFlow(false)
     val isImageResponse = _isImageResponse.asStateFlow()
-
+    // Add a state to hold the initial locator for the navigator
+    private val _initialLocator = MutableStateFlow<Locator?>(null)
     // Highlights for the current book
     val currentBookHighlights: StateFlow<List<HighlightEntity>> = _publication
         .filterNotNull()
@@ -50,9 +51,21 @@ class ReaderViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val initialLocator: StateFlow<Locator?> = _initialLocator.asStateFlow()
     fun onFileSelected(uri: Uri) {
         initialUri = uri.toString()
         viewModelScope.launch {
+            // 1. Update lastRead timestamp in DB
+            bookDao.updateLastRead(uri.toString(), System.currentTimeMillis())
+
+            // 2. Fetch the book to get saved location
+            val book = bookDao.getBookByUri(uri.toString())
+            val savedLocator = book?.lastLocationJson?.let {
+                Locator.fromJSON(org.json.JSONObject(it))
+            }
+            _initialLocator.value = savedLocator
+
+            // 3. Open the publication
             val pub = readiumManager.openEpubFromUri(uri)
             _publication.value = pub
         }
@@ -70,6 +83,7 @@ class ReaderViewModel @Inject constructor(
 
         val uri = initialUri ?: return
         viewModelScope.launch {
+            bookDao.updateLastLocation(uri, locator.toJSON().toString())
             bookDao.updateProgress(uri, progression)
         }
     }

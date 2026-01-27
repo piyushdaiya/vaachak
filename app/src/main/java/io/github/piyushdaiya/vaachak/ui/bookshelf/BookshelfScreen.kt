@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
@@ -25,13 +26,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import io.github.piyushdaiya.vaachak.data.local.BookEntity
+import androidx.compose.ui.graphics.StrokeCap
+
 
 @Composable
 fun BookshelfScreen(
     onBookClick: (String) -> Unit,
     viewModel: BookshelfViewModel = hiltViewModel()
 ) {
-    val books by viewModel.books.collectAsState()
+    val books by viewModel.allBooks.collectAsState() // Renamed to allBooks for clarity
+    val recentBook by viewModel.recentBook.collectAsState() // The logic we added to ViewModel
     val snackbarHostState = remember { SnackbarHostState() }
     val message by viewModel.snackbarMessage
 
@@ -76,17 +81,49 @@ fun BookshelfScreen(
                 )
             }
         } else {
+            // Using LazyVerticalGrid with span logic to allow the Recent Card to take full width
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
                 contentPadding = PaddingValues(16.dp),
-                modifier = Modifier.padding(padding).fillMaxSize().background(Color.White)
+                modifier = Modifier
+                    .padding(padding)
+                    .fillMaxSize()
+                    .background(Color.White)
             ) {
+                // --- SECTION: CONTINUE READING ---
+                recentBook?.let { book ->
+                    item(span = { GridItemSpan(2) }) {
+                        Column(modifier = Modifier.padding(bottom = 16.dp)) {
+                            Text(
+                                text = "Continue Reading",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                            RecentBookCard(
+                                book = book,
+                                onClick = { onBookClick(book.uriString) }
+                            )
+                            Spacer(Modifier.height(16.dp))
+                            Divider(color = Color.LightGray.copy(alpha = 0.5f))
+                            Spacer(Modifier.height(16.dp))
+                            Text(
+                                text = "Your Library",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                        }
+                    }
+                }
+
+                // --- SECTION: ALL BOOKS ---
                 items(books, key = { it.id }) { book ->
                     BookCard(
                         title = book.title,
                         author = book.author,
                         coverPath = book.coverPath,
-                        progress = book.progress, // Pass progress from DB
+                        progress = book.progress,
                         onClick = { onBookClick(book.uriString) },
                         onDelete = { viewModel.deleteBook(book.id) }
                     )
@@ -97,15 +134,87 @@ fun BookshelfScreen(
 }
 
 @Composable
+fun RecentBookCard(
+    book: BookEntity,
+    onClick: () -> Unit
+) {
+    ElevatedCard(
+        onClick = onClick,
+        colors = CardDefaults.elevatedCardColors(containerColor = Color.White),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(12.dp)
+                .height(IntrinsicSize.Min)
+        ) {
+            // Smaller Cover Thumbnail
+            Box(
+                modifier = Modifier
+                    .size(width = 60.dp, height = 90.dp)
+                    .background(Color.LightGray, MaterialTheme.shapes.small),
+                contentAlignment = Alignment.Center
+            ) {
+                if (book.coverPath != null) {
+                    AsyncImage(
+                        model = book.coverPath,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Text(book.title.take(1), fontWeight = FontWeight.Bold)
+                }
+            }
+
+            Column(
+                modifier = Modifier
+                    .padding(start = 16.dp)
+                    .fillMaxHeight(),
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = book.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = book.author,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                LinearProgressIndicator(
+                    progress = book.progress.toFloat(),
+                    modifier = Modifier.fillMaxWidth().height(6.dp),
+                    color = Color(0xFF4CAF50),
+                    trackColor = Color(0xFFE0E0E0),
+                    strokeCap = StrokeCap.Round
+                )
+                Text(
+                    text = "${(book.progress * 100).toInt()}% completed",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.DarkGray,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+        }
+    }
+}
+@Composable
 fun BookCard(
     title: String,
     author: String,
     coverPath: String?,
-    progress: Double, // New Parameter
+    progress: Double,
     onClick: () -> Unit,
     onDelete: () -> Unit
 ) {
     Card(
+        onClick = onClick,
         colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
         modifier = Modifier
             .padding(8.dp)
@@ -140,12 +249,12 @@ fun BookCard(
 
                     // Progress Bar Overlay at bottom of cover
                     LinearProgressIndicator(
-                        progress = progress.toFloat(),
+                        progress = { progress.toFloat() },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(4.dp)
                             .align(Alignment.BottomCenter),
-                        color = Color(0xFF4CAF50), // Green progress
+                        color = Color(0xFF4CAF50),
                         trackColor = Color.White.copy(alpha = 0.5f)
                     )
                 }
@@ -167,7 +276,6 @@ fun BookCard(
                         overflow = TextOverflow.Ellipsis
                     )
 
-                    // Percentage Text
                     Text(
                         text = "${(progress * 100).toInt()}% completed",
                         fontSize = 10.sp,
@@ -177,11 +285,15 @@ fun BookCard(
                 }
             }
 
+            // Delete Button Overlay
             Surface(
                 onClick = onDelete,
                 color = Color.Black.copy(alpha = 0.6f),
                 shape = MaterialTheme.shapes.small,
-                modifier = Modifier.align(Alignment.TopEnd).padding(8.dp).size(32.dp)
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(8.dp)
+                    .size(32.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.Delete,

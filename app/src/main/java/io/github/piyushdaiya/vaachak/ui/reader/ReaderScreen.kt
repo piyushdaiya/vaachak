@@ -60,7 +60,7 @@ fun ReaderScreen(
     val pageInfo by viewModel.currentPageInfo.collectAsState()
     val scope = rememberCoroutineScope()
     var currentNavigatorFragment by remember { mutableStateOf<EpubNavigatorFragment?>(null) }
-
+    val initialLocator by viewModel.initialLocator.collectAsState()
     // Readium 2.4.0+ Compliant Listener
     val navListener = remember {
         object : EpubNavigatorFragment.Listener {
@@ -193,7 +193,7 @@ fun ReaderScreen(
 
                             val factory = EpubNavigatorFactory(publication!!)
                             val fragment = factory.createFragmentFactory(
-                                initialLocator = null,
+                                initialLocator = initialLocator,
                                 configuration = EpubNavigatorFragment.Configuration().apply {
                                     selectionActionModeCallback = aiSelectionCallback
                                 },

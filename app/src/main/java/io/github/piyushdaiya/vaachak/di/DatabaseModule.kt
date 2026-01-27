@@ -22,8 +22,9 @@ object DatabaseModule {
         return Room.databaseBuilder(
             context,
             AppDatabase::class.java,
-            "vaachak_db"
+            AppDatabase.DATABASE_NAME
         )
+            .addMigrations(AppDatabase.MIGRATION_4_5)
             .fallbackToDestructiveMigration()
             .build()
     }

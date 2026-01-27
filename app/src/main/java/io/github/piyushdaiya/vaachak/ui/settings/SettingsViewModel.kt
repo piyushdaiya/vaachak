@@ -23,6 +23,9 @@ class SettingsViewModel @Inject constructor(
 
     private val _cfToken = MutableStateFlow("")
     val cfToken = _cfToken.asStateFlow()
+    // NEW: E-ink state
+    private val _isEinkEnabled = MutableStateFlow(false)
+    val isEinkEnabled = _isEinkEnabled.asStateFlow()
 
     init { loadSettings() }
 
@@ -30,13 +33,26 @@ class SettingsViewModel @Inject constructor(
         _geminiKey.value = settingsRepo.geminiKey.first()
         _cfUrl.value = settingsRepo.cloudflareUrl.first()
         _cfToken.value = settingsRepo.cloudflareToken.first()
+        // Load from repository
+        _isEinkEnabled.value = settingsRepo.isEinkEnabled.first()
     }
 
     fun updateGemini(valText: String) { _geminiKey.value = valText }
     fun updateCfUrl(valText: String) { _cfUrl.value = valText }
     fun updateCfToken(valText: String) { _cfToken.value = valText }
-
+    // NEW: Toggle function
+    fun toggleEink(enabled: Boolean) {
+        _isEinkEnabled.value = enabled
+    }
     fun saveSettings() = viewModelScope.launch {
-        settingsRepo.saveSettings(_geminiKey.value, _cfUrl.value, _cfToken.value)
+        settingsRepo.saveSettings(_geminiKey.value, _cfUrl.value, _cfToken.value,_isEinkEnabled.value)
+    }
+    fun resetSettings() = viewModelScope.launch {
+        settingsRepo.clearSettings()
+        // Refresh local state to reflect empty values
+        _geminiKey.value = ""
+        _cfUrl.value = ""
+        _cfToken.value = ""
+        _isEinkEnabled.value = false
     }
 }
