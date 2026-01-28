@@ -22,6 +22,7 @@ data class HighlightEntity(
     val publicationId: String,  // Links the highlight to a specific book
     val locatorJson: String,    // Stores the exact position (chapter, page, location)
     val text: String,
-    val color: Int,             // The highlight color (Yellow, Green, etc.)
+    val color: Int,
+    val tag: String = "General",
     val created: Long = System.currentTimeMillis()
 )

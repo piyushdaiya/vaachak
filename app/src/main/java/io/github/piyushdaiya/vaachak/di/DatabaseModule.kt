@@ -11,7 +11,9 @@ import io.github.piyushdaiya.vaachak.data.local.AppDatabase
 import io.github.piyushdaiya.vaachak.data.local.HighlightDao
 import io.github.piyushdaiya.vaachak.data.local.BookDao
 import javax.inject.Singleton
-
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import io.github.piyushdaiya.vaachak.data.repository.settingsDataStore
 @Module
 @InstallIn(SingletonComponent::class)
 object DatabaseModule {
@@ -24,7 +26,6 @@ object DatabaseModule {
             AppDatabase::class.java,
             AppDatabase.DATABASE_NAME
         )
-            .addMigrations(AppDatabase.MIGRATION_4_5)
             .fallbackToDestructiveMigration()
             .build()
     }
@@ -37,6 +38,16 @@ object DatabaseModule {
     @Singleton
     fun provideBookDao(database: AppDatabase): BookDao {
         return database.bookDao() // Now the function is used!
+    }
+    @Module
+    @InstallIn(SingletonComponent::class)
+    object DataStoreModule {
+
+        @Provides
+        @Singleton
+        fun provideDataStore(@ApplicationContext context: Context): DataStore<Preferences> {
+            return context.settingsDataStore
+        }
     }
 }
 

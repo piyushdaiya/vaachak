@@ -4,11 +4,15 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -22,32 +26,28 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items // CRITICAL: This fixes "Unresolved reference items"
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.OutlinedTextField
-// Ensure you have the collectors
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.material3.HorizontalDivider // Ensure you're using M3 Divider
-import androidx.compose.material.icons.filled.Sort
-import androidx.compose.material.icons.filled.Check
+import io.github.piyushdaiya.vaachak.data.local.BookEntity
+import androidx.compose.material.icons.filled.AutoAwesome
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BookshelfScreen(
     onBookClick: (String) -> Unit,
+    onRecallClick: () -> Unit,
     viewModel: BookshelfViewModel = hiltViewModel()
 ) {
     val allBooks by viewModel.allBooks.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val libraryBooks by viewModel.filteredLibraryBooks.collectAsState()
-    val continueReadingBooks by viewModel.recentBooks.collectAsState() // Plural based on refactor
+    val continueReadingBooks by viewModel.recentBooks.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val message by viewModel.snackbarMessage
     val sortOrder by viewModel.sortOrder.collectAsState()
     var showSortMenu by remember { mutableStateOf(false) }
+
+    // --- RECAP STATES ---
+    val recapState by viewModel.recapState.collectAsState()
+    val loadingUri by viewModel.isLoadingRecap.collectAsState()
 
     LaunchedEffect(message) {
         message?.let {
@@ -63,6 +63,22 @@ fun BookshelfScreen(
     }
 
     Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Vaachak", fontWeight = FontWeight.Bold) },
+                actions = {
+                    // NEW: GLOBAL RECALL BUTTON
+                    IconButton(onClick = onRecallClick) {
+                        Icon(
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = "Session Recall",
+                            tint = Color.Black
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+            )
+        },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             ExtendedFloatingActionButton(
@@ -92,8 +108,6 @@ fun BookshelfScreen(
                 modifier = Modifier.padding(padding).fillMaxSize().background(Color.White),
                 contentPadding = PaddingValues(bottom = 88.dp)
             ) {
-                // --- CONTINUE READING ---
-                // We only show this if the user isn't currently searching
                 if (continueReadingBooks.isNotEmpty() && searchQuery.isEmpty()) {
                     item {
                         Text(
@@ -108,24 +122,24 @@ fun BookshelfScreen(
                         ) {
                             items(continueReadingBooks, key = { it.id }) { book ->
                                 BookCard(
-                                    title = book.title,
-                                    author = book.author,
-                                    coverPath = book.coverPath,
-                                    progress = book.progress,
-                                    isCompact = true,
+                                    book = book,
+                                    isCompact = true, // Hero style for recent books
+                                    isLoadingRecap = loadingUri == book.uriString,
                                     onClick = { onBookClick(book.uriString) },
-                                    onDelete = { viewModel.deleteBook(book.id) }
+                                    onDelete = { viewModel.deleteBook(book.id) },
+                                    onRecapClick = { viewModel.getQuickRecap(book) }
                                 )
                             }
                         }
                         Spacer(modifier = Modifier.height(16.dp))
-                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp),
+                        HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 16.dp),
                             thickness = 0.5.dp,
-                            color = Color.LightGray.copy(alpha = 0.5f))
+                            color = Color.LightGray.copy(alpha = 0.5f)
+                        )
                     }
                 }
 
-                // --- SEARCH BAR & HEADER (Wrapped in item) ---
                 item {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Row(
@@ -141,10 +155,7 @@ fun BookshelfScreen(
 
                             Box {
                                 IconButton(onClick = { showSortMenu = true }) {
-                                    Icon(
-                                        Icons.Default.Sort,
-                                        contentDescription = "Sort"
-                                    )
+                                    Icon(Icons.Default.Sort, contentDescription = "Sort")
                                 }
                                 DropdownMenu(
                                     expanded = showSortMenu,
@@ -170,7 +181,6 @@ fun BookshelfScreen(
                         }
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        // FIX: Added the OutlinedTextField here
                         OutlinedTextField(
                             value = searchQuery,
                             onValueChange = { viewModel.updateSearchQuery(it) },
@@ -190,53 +200,34 @@ fun BookshelfScreen(
                     }
                 }
 
-                // --- SEARCH RESULTS / LIBRARY GRID ---
                 if (libraryBooks.isEmpty() && searchQuery.isNotEmpty()) {
-                    // 1. NO RESULTS FOUND STATE
                     item {
                         Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 64.dp),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 64.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Search,
-                                contentDescription = null,
-                                modifier = Modifier.size(64.dp),
-                                tint = Color.LightGray
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(
-                                text = "No books found for \"$searchQuery\"",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = Color.Gray
-                            )
-                            TextButton(onClick = { viewModel.updateSearchQuery("") }) {
-                                Text("Clear search")
-                            }
+                            Icon(Icons.Default.Search, null, Modifier.size(64.dp), Color.LightGray)
+                            Spacer(Modifier.height(16.dp))
+                            Text("No books found for \"$searchQuery\"", color = Color.Gray)
+                            TextButton(onClick = { viewModel.updateSearchQuery("") }) { Text("Clear search") }
                         }
                     }
                 } else {
-                    // 2. ACTUAL LIBRARY GRID (Existing logic)
                     val bookRows = libraryBooks.chunked(3)
                     items(bookRows) { rowBooks ->
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 4.dp),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             for (book in rowBooks) {
                                 Box(modifier = Modifier.weight(1f)) {
                                     BookCard(
-                                        title = book.title,
-                                        author = book.author,
-                                        coverPath = book.coverPath,
-                                        progress = book.progress,
+                                        book = book,
                                         isCompact = true,
+                                        isLoadingRecap = loadingUri == book.uriString,
                                         onClick = { onBookClick(book.uriString) },
-                                        onDelete = { viewModel.deleteBook(book.id) }
+                                        onDelete = { viewModel.deleteBook(book.id) },
+                                        onRecapClick = { viewModel.getQuickRecap(book) }
                                     )
                                 }
                             }
@@ -249,69 +240,80 @@ fun BookshelfScreen(
             }
         }
 
-
+        // --- GLOBAL RECAP DIALOG ---
+        // This watches for any recap generated in the ViewModel map
+        continueReadingBooks.forEach { book ->
+            recapState[book.uriString]?.let { recap ->
+                AlertDialog(
+                    onDismissRequest = { viewModel.clearRecap(book.uriString) },
+                    title = { Text("Quick Recap: ${book.title}") },
+                    text = {
+                        Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                            Text(recap, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    },
+                    confirmButton = {
+                        Button(onClick = {
+                            viewModel.clearRecap(book.uriString)
+                            onBookClick(book.uriString)
+                        }) { Text("Resume Reading") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { viewModel.clearRecap(book.uriString) }) { Text("Close") }
+                    }
+                )
+            }
+        }
     }
 }
 
 @Composable
 fun BookCard(
-    title: String,
-    author: String,
-    coverPath: String?,
-    progress: Double,
-    isCompact: Boolean = false, // Toggle between Hero and Grid view
+    book: BookEntity,
+    isCompact: Boolean = false,
+    isLoadingRecap: Boolean = false,
     onClick: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onRecapClick: () -> Unit
 ) {
     Card(
         onClick = onClick,
         colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
         modifier = Modifier
-            .padding(4.dp) // Reduced padding for better density
-            .width(if (isCompact) 110.dp else 150.dp) // Limits horizontal/grid size
+            .padding(4.dp)
+            .width(if (isCompact) 110.dp else 150.dp)
             .wrapContentHeight()
-            .clickable(onClick = onClick)
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             Column {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(if (isCompact) 140.dp else 200.dp) // Fixed heights to limit scrolling
+                        .height(if (isCompact) 140.dp else 200.dp)
                         .background(Color.LightGray),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (coverPath != null) {
+                    if (book.coverPath != null) {
                         AsyncImage(
-                            model = coverPath,
-                            contentDescription = "Cover of $title",
+                            model = book.coverPath,
+                            contentDescription = null,
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop
                         )
                     } else {
                         Text(
-                            text = title.take(1).uppercase(),
+                            text = book.title.take(1).uppercase(),
                             fontSize = if (isCompact) 24.sp else 48.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
                     }
 
-                    // Progress Bar Overlay at bottom of cover
-                    LinearProgressIndicator(
-                        progress = { progress.toFloat() },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(if (isCompact) 3.dp else 6.dp)
-                            .align(Alignment.BottomCenter),
-                        color = Color(0xFF4CAF50),
-                        trackColor = Color.White.copy(alpha = 0.5f)
-                    )
                 }
 
                 Column(modifier = Modifier.padding(8.dp)) {
                     Text(
-                        text = title,
+                        text = book.title,
                         fontWeight = FontWeight.Bold,
                         fontSize = if (isCompact) 12.sp else 14.sp,
                         maxLines = if (isCompact) 1 else 2,
@@ -319,37 +321,63 @@ fun BookCard(
                         color = Color.Black
                     )
                     Text(
-                        text = author,
+                        text = book.author,
                         fontSize = 12.sp,
                         color = Color.Gray,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-
+                    // NEW: Persistent Progress Text
                     Text(
-                        text = "${(progress * 100).toInt()}% completed",
+                        text = "${(book.progress * 100).toInt()}% read",
                         fontSize = 10.sp,
+                        fontWeight = FontWeight.Medium,
                         color = Color.DarkGray,
                         modifier = Modifier.padding(top = 2.dp)
                     )
                 }
             }
 
-            // Minimalist Delete Button for E-ink/Compact efficiency
-            IconButton(
-                onClick = onDelete,
+            // --- ACTION BUTTONS OVERLAY ---
+            Row(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(2.dp)
-                    .size(if (isCompact) 24.dp else 32.dp)
-                    .background(Color.Black.copy(alpha = 0.4f), shape = MaterialTheme.shapes.small)
+                    .padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "Remove",
-                    tint = Color.White,
-                    modifier = Modifier.size(if (isCompact) 14.dp else 18.dp)
-                )
+                // QUICK RECAP BUTTON
+                IconButton(
+                    onClick = onRecapClick,
+                    modifier = Modifier
+                        .size(if (isCompact) 26.dp else 32.dp)
+                        .background(Color.White.copy(alpha = 0.8f), shape = CircleShape)
+                ) {
+                    if (isLoadingRecap) {
+                        CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = Color.Black)
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.History,
+                            contentDescription = "Recap",
+                            tint = Color.Black,
+                            modifier = Modifier.size(if (isCompact) 16.dp else 20.dp)
+                        )
+                    }
+                }
+
+                // DELETE BUTTON
+                IconButton(
+                    onClick = onDelete,
+                    modifier = Modifier
+                        .size(if (isCompact) 26.dp else 32.dp)
+                        .background(Color.Black.copy(alpha = 0.6f), shape = CircleShape)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Remove",
+                        tint = Color.White,
+                        modifier = Modifier.size(if (isCompact) 14.dp else 18.dp)
+                    )
+                }
             }
         }
     }

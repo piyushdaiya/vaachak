@@ -13,8 +13,13 @@ import kotlinx.coroutines.launch
 import org.readium.r2.shared.publication.Locator // ONLY THIS LOCATOR
 import org.readium.r2.shared.publication.Publication
 import javax.inject.Inject
-
-@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import org.json.JSONObject
+import org.readium.r2.navigator.Decoration
+import org.readium.r2.shared.ExperimentalReadiumApi
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class, ExperimentalReadiumApi::class)
 @HiltViewModel
 class ReaderViewModel @Inject constructor(
     private val aiRepository: AiRepository,
@@ -45,12 +50,36 @@ class ReaderViewModel @Inject constructor(
     // Add a state to hold the initial locator for the navigator
     private val _initialLocator = MutableStateFlow<Locator?>(null)
     // Highlights for the current book
-    val currentBookHighlights: StateFlow<List<HighlightEntity>> = _publication
-        .filterNotNull()
-        .flatMapLatest { pub ->
-            highlightDao.getHighlightsForBook(initialUri ?: "")
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val currentBookHighlights: StateFlow<List<Decoration>> = viewModelScope.launch {
+        // We use a backing property or the existing _publication flow
+    }.let {
+        publication
+            .filterNotNull()
+            .flatMapLatest { pub ->
+                // Explicitly fetch highlights for the current book URI
+                highlightDao.getHighlightsForBook(initialUri ?: "")
+            }
+            .map { entities: List<HighlightEntity> ->
+                entities.map { entity ->
+                    Decoration(
+                        id = entity.id.toString(),
+                        locator = Locator.fromJSON(JSONObject(entity.locatorJson))
+                            ?: throw Exception("Invalid Locator JSON"),
+                        style = Decoration.Style.Highlight(tint = android.graphics.Color.YELLOW)
+                    )
+                }
+            }
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5000),
+                initialValue = emptyList()
+            )
+    }
+    // Explicitly typed StateFlows to resolve "Cannot infer type" errors
+    private val _showTagSelector = MutableStateFlow<Boolean>(false)
+    val showTagSelector: StateFlow<Boolean> = _showTagSelector.asStateFlow()
+
+    private var pendingHighlightLocator: Locator? = null
 
     val initialLocator: StateFlow<Locator?> = _initialLocator.asStateFlow()
     fun setInitialLocation(json: String?) {
@@ -101,16 +130,20 @@ class ReaderViewModel @Inject constructor(
         }
     }
 
-    fun saveHighlight(locator: Locator, color: Int) {
-        val uri = initialUri ?: return
+    fun saveHighlightWithTag(tag: String) {
+        val locator = pendingHighlightLocator ?: return
+        val currentUri = initialUri ?: return // Ensure you have the book URI stored
+
         viewModelScope.launch {
-            val entity = HighlightEntity(
-                publicationId = uri,
+            val highlight = HighlightEntity(
+                publicationId = currentUri,
                 locatorJson = locator.toJSON().toString(),
-                color = color,
-                text = locator.text.highlight ?: ""
+                text = locator.text.highlight ?: "Selected Text",
+                color = android.graphics.Color.YELLOW,
+                tag = tag
             )
-            highlightDao.insertHighlight(entity)
+            highlightDao.insertHighlight(highlight)
+            dismissTagSelector()
         }
     }
 
@@ -118,6 +151,16 @@ class ReaderViewModel @Inject constructor(
         viewModelScope.launch {
             highlightDao.deleteHighlightById(id)
         }
+    }
+
+    fun prepareHighlight(locator: Locator) {
+        pendingHighlightLocator = locator
+        _showTagSelector.value = true
+    }
+
+    fun dismissTagSelector() {
+        _showTagSelector.value = false
+        pendingHighlightLocator = null
     }
 
     fun onTextSelected(text: String) {
@@ -162,4 +205,62 @@ class ReaderViewModel @Inject constructor(
             _aiResponse.value = result
         }
     }
+//Recap functionality
+private val _recapText = MutableStateFlow<String?>(null)
+    val recapText: StateFlow<String?> = _recapText.asStateFlow()
+
+    private val _isRecapLoading = MutableStateFlow(false)
+    val isRecapLoading: StateFlow<Boolean> = _isRecapLoading.asStateFlow()
+
+    fun generateRecap(currentPageText: String) {
+        val pub = publication.value ?: return
+        val title = pub.metadata.title ?: "this book"
+
+        viewModelScope.launch {
+            _isRecapLoading.value = true
+            try {
+                // 1. Fetch the last 10 highlights for context
+                val highlights = highlightDao.getHighlightsForBook(initialUri ?: "")
+                    .first() // Get current snapshot
+                    .take(10)
+                    .joinToString("\n") { "- ${it.text}" }
+
+                // 2. Call the AI Repository
+                val response = aiRepository.generateRecap(
+                    bookTitle = title,
+                    highlightsContext = highlights,
+                    currentPageText = currentPageText
+                )
+
+                _recapText.value = response
+            } catch (e: Exception) {
+                _recapText.value = "Failed to generate recap: ${e.localizedMessage}"
+            } finally {
+                _isRecapLoading.value = false
+            }
+        }
+    }
+
+    fun dismissRecap() {
+        _recapText.value = null
+    }
+    fun saveRecapToHighlights(recapContent: String) {
+        val pub = publication.value ?: return
+        val locator = currentLocator.value ?: return
+
+        viewModelScope.launch {
+            val recapHighlight = HighlightEntity(
+                publicationId = initialUri ?: "",
+                // Use the current page location so clicking the recap takes you there
+                locatorJson = locator.toJSON().toString(),
+                text = "[RECAP]: $recapContent",
+                color = android.graphics.Color.LTGRAY, // Distinct color for recaps
+                tag = "Recaps", // The specific tag you requested
+                created = System.currentTimeMillis()
+            )
+            highlightDao.insertHighlight(recapHighlight)
+            dismissRecap() // Close the dialog after saving
+        }
+    }
+
 }

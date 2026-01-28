@@ -55,4 +55,14 @@ class SettingsViewModel @Inject constructor(
         _cfToken.value = ""
         _isEinkEnabled.value = false
     }
+    private val _isAutoSaveRecapsEnabled = MutableStateFlow(true) // Default to true
+    val isAutoSaveRecapsEnabled = _isAutoSaveRecapsEnabled.asStateFlow()
+
+    fun toggleAutoSaveRecaps(enabled: Boolean) {
+        viewModelScope.launch {
+            // Save to your Preferences DataStore/SharedPreferences
+            settingsRepo.setAutoSaveRecaps(enabled)
+            _isAutoSaveRecapsEnabled.value = enabled
+        }
+    }
 }

@@ -17,6 +17,10 @@ import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
 import javax.inject.Inject
+import io.github.piyushdaiya.vaachak.data.local.HighlightDao
+import io.github.piyushdaiya.vaachak.data.repository.AiRepository
+import androidx.lifecycle.viewModelScope
+import io.github.piyushdaiya.vaachak.data.local.HighlightEntity
 
 // Define the sorting options
 enum class SortOrder {
@@ -26,6 +30,8 @@ enum class SortOrder {
 class BookshelfViewModel @Inject constructor(
     private val bookDao: BookDao,
     private val readiumManager: ReadiumManager,
+    private val highlightDao: HighlightDao,
+    private val aiRepository: AiRepository,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -131,4 +137,39 @@ class BookshelfViewModel @Inject constructor(
             bookDao.deleteBook(id)
         }
     }
+    //recap
+    private val _recapState = MutableStateFlow<Map<String, String>>(emptyMap())
+    val recapState: StateFlow<Map<String, String>> = _recapState.asStateFlow()
+
+    private val _isLoadingRecap = MutableStateFlow<String?>(null) // Stores URI of book being summarized
+    val isLoadingRecap: StateFlow<String?> = _isLoadingRecap.asStateFlow()
+
+    fun getQuickRecap(book: BookEntity) {
+        viewModelScope.launch {
+            _isLoadingRecap.value = book.uriString
+            try {
+                // Fetch highlights for this specific book
+                val contextHighlights = highlightDao.getHighlightsForBook(book.uriString)
+                    .first()
+                    .take(10)
+                    .joinToString("\n") { it.text }
+
+                val summary = aiRepository.generateRecap(
+                    bookTitle = book.title,
+                    highlightsContext = contextHighlights,
+                    currentPageText = "The user is about to resume reading."
+                )
+
+                // Map the summary to the book URI
+                _recapState.value = _recapState.value + (book.uriString to summary)
+            } finally {
+                _isLoadingRecap.value = null
+            }
+        }
+    }
+
+    fun clearRecap(uri: String) {
+        _recapState.value = _recapState.value - uri
+    }
+
 }

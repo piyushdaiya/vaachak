@@ -63,5 +63,39 @@ class AiRepository @Inject constructor(
             }
         }
     }
+    // --- NEW RECAP FUNCTIONALITY ---
+    suspend fun generateRecap(
+        bookTitle: String,
+        highlightsContext: String,
+        currentPageText: String
+    ): String {
+        return try {
+            val prompt = """
+                I am returning to read '$bookTitle'. 
+                
+                Based on my previous highlights:
+                "$highlightsContext"
+                
+                And the current page text:
+                "$currentPageText"
+                
+                Provide a quick 3-sentence recap of the plot leading up to this point and a brief 'Who's Who' of characters present in this specific scene.
+                STRICTLY avoid future plot spoilers.
+            """.trimIndent()
+
+            getGeminiModel().generateContent(prompt).text ?: "Unable to generate recap."
+        } catch (e: Exception) {
+            "Error generating recap: ${e.localizedMessage}"
+        }
+    }
+    suspend fun getRecallSummary(bookTitle: String, context: String): String {
+        val prompt = """
+        Context: $context
+        Task: Provide a 2-sentence 'Where I left off' summary for '$bookTitle'. 
+        Focus on the current plot tension and key characters present. 
+        STRICTLY avoid future spoilers.
+    """.trimIndent()
+        return getGeminiModel().generateContent(prompt).text ?: "Summary unavailable."
+    }
 }
 

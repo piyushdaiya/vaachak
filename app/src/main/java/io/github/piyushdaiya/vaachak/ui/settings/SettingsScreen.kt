@@ -26,7 +26,7 @@ fun SettingsScreen(
     val cfUrl by viewModel.cfUrl.collectAsState()
     val cfToken by viewModel.cfToken.collectAsState()
     val isEinkEnabled by viewModel.isEinkEnabled.collectAsState()
-
+    val isAutoSaveEnabled by viewModel.isAutoSaveRecapsEnabled.collectAsState()
     var showSavedMessage by remember { mutableStateOf(false) }
     var showResetDialog by remember { mutableStateOf(false) }
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -76,7 +76,20 @@ fun SettingsScreen(
             },
             colors = ListItemDefaults.colors(containerColor = Color.Transparent)
         )
-
+        ListItem(
+            headlineContent = { Text("Auto-Save AI Recaps") },
+            supportingContent = { Text("Automatically save generated summaries to your highlights.") },
+            trailingContent = {
+                Switch(
+                    checked = isAutoSaveEnabled,
+                    onCheckedChange = { viewModel.toggleAutoSaveRecaps(it) },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.Black,
+                        checkedTrackColor = Color.Gray
+                    )
+                )
+            }
+        )
         HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), thickness = 0.5.dp)
 
         // --- AI SETTINGS ---

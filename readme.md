@@ -6,12 +6,22 @@ It seamlessly bridges traditional reading with advanced multimodal AI. By levera
 
 ## ✨ Features
 * **E-Ink Optimized UI:** Global bitonal theme, zero-animation transitions, and custom high-contrast Indication logic to prevent ghosting.
+* **Personalized AI Recaps (In-Reader):** AI-powered "Story So Far" feature within the reader.
+  * Your Memory, Enhanced: Unlike generic summaries, these recaps use your personal highlights to determine what matters.
+  * Spoiler-Free Logic: The AI is strictly bounded to your current progress—it knows where you are and never ruins the ending.
+  * Knowledge Journaling: You can now save these AI summaries directly to your highlights list under a new "Recaps" tag.
+* **Quick Recall (Bookshelf)** A new Sparkle (AutoAwesome) icon on each book card in the "Continue Reading" list provides a 2-sentence briefing on the plot tension and key characters based on your last read before you even open the file.
+* **Global Session Briefing** A dedicated Session Recall dashboard that synthesizes your entire reading life.
+  * Parallel Briefing: Parallel Gemini calls generate separate, high-fidelity summaries for your top 5 active books.
+  * One-Click Resumption: Read the recap, hit "Resume Reading," and jump straight back into the book.
+  * Persistent Recaps: Every time you trigger a Global Recall, the summary is etched into your database.
 * **Context-Aware Explanations (Gemini 2.5 Flash):** Understands the exact paragraph context of highlighted text.
 * **AI Integration**: Contextual "Explain," "Character Investigation," and "Visualize" actions powered by Gemini and Cloudflare Workers.
 * **Self-Healing AI Pipeline:** If the image generation API fails, the app automatically falls back to Gemini to provide a vivid text description instead.
 * **Secure API Configuration:** Bring Your Own Keys (BYOK). All API keys and endpoints are configured directly within the app's settings—no hardcoded secrets.
 * **Progress Tracking**: Automatic persistence of reading percentage and page numbers.
 * **Deep-Link Highlights**: Navigate directly to the exact page of a highlight from a centralized listing using Readium Locators.
+  * Highlight Categorization: Add the ability to tag highlights (e.g., "Research," "Quotes," "Characters") and filter the Highlights by these tags.
 * **Dual-Section Bookshelf**: A dedicated "Continue Reading" horizontal carousel for active books and a compact, searchable grid for the main library.
 
 ## 🏗️ Architecture

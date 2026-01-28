@@ -8,14 +8,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VaachakHeader(
     title: String,
     onBack: () -> Unit,
     showBackButton: Boolean = true,
-    onSettingsClick: () -> Unit
-) {
+    onSettingsClick: () -> Unit,
+    ) {
     TopAppBar(
         title = {
             Text(
@@ -37,6 +38,7 @@ fun VaachakHeader(
             }
         },
         actions = {
+
             IconButton(onClick = onSettingsClick) {
                 Icon(
                     imageVector = Icons.Default.Settings,
