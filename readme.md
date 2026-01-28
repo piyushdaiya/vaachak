@@ -6,6 +6,8 @@ It seamlessly bridges traditional reading with advanced multimodal AI. By levera
 
 ## ✨ Features
 * **E-Ink Optimized UI:** Global bitonal theme, zero-animation transitions, and custom high-contrast Indication logic to prevent ghosting.
+* **E-ink Sharpness Engine**: A custom contrast slider that allows users to sharpen secondary text and dividers to reduce ghosting on e-paper.
+* **Persistent Theme Modes**: Added persistent storage for Light, Dark, and E-ink modes via Jetpack DataStore.
 * **Personalized AI Recaps (In-Reader):** AI-powered "Story So Far" feature within the reader.
   * Your Memory, Enhanced: Unlike generic summaries, these recaps use your personal highlights to determine what matters.
   * Spoiler-Free Logic: The AI is strictly bounded to your current progress—it knows where you are and never ruins the ending.
@@ -23,6 +25,7 @@ It seamlessly bridges traditional reading with advanced multimodal AI. By levera
 * **Deep-Link Highlights**: Navigate directly to the exact page of a highlight from a centralized listing using Readium Locators.
   * Highlight Categorization: Add the ability to tag highlights (e.g., "Research," "Quotes," "Characters") and filter the Highlights by these tags.
 * **Dual-Section Bookshelf**: A dedicated "Continue Reading" horizontal carousel for active books and a compact, searchable grid for the main library.
+* **Local Privacy**: Your library and highlights stay on your device.
 
 ## 🏗️ Architecture
 Vaachak is built using Modern Android Development (MAD) standards and Clean Architecture principles:

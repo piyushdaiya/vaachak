@@ -6,8 +6,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import org.readium.r2.shared.publication.Locator
-
 @Composable
 fun VaachakFooter(pageInfo: String) {
     BottomAppBar(
@@ -20,7 +18,7 @@ fun VaachakFooter(pageInfo: String) {
         ) {
             Text(
                 text = pageInfo,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.labelSmall,
                 color = Color.Gray
             )
         }

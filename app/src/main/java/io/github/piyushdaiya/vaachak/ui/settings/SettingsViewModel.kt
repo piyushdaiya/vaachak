@@ -9,7 +9,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
+import io.github.piyushdaiya.vaachak.ui.theme.ThemeMode
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val settingsRepo: SettingsRepository
@@ -63,6 +66,33 @@ class SettingsViewModel @Inject constructor(
             // Save to your Preferences DataStore/SharedPreferences
             settingsRepo.setAutoSaveRecaps(enabled)
             _isAutoSaveRecapsEnabled.value = enabled
+        }
+    }
+    // Expose the theme as a StateFlow for the UI to observe
+    val themeMode: StateFlow<ThemeMode> = settingsRepo.themeMode
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = ThemeMode.E_INK
+        )
+
+    fun updateTheme(mode: ThemeMode) {
+        viewModelScope.launch {
+            settingsRepo.setThemeMode(mode)
+        }
+    }
+    val einkContrast = settingsRepo.einkContrast.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.5f)
+
+    fun setContrast(value: Float) {
+        viewModelScope.launch { settingsRepo.setContrast(value) }
+    }
+
+    // 1. Add the state flow for contrast
+
+    // 2. Add the update function
+    fun updateContrast(newContrast: Float) {
+        viewModelScope.launch {
+            settingsRepo.setContrast(newContrast)
         }
     }
 }

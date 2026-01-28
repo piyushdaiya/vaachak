@@ -1,53 +1,41 @@
 package io.github.piyushdaiya.vaachak.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
-
-
-private val LightColorScheme = lightColorScheme(
-    primary = Color.Black,
-    secondary = Color.Gray,
-    background = Color.White,
-    surface = Color.White,
-    onPrimary = Color.White,
-    onBackground = Color.Black,
-    onSurface = Color.Black
-)
-
-// Define DarkColorScheme if needed, or stick to Light for now
-private val DarkColorScheme = darkColorScheme(
-    primary = Color.White,
-    secondary = Color.Gray,
-    background = Color.Black,
-    surface = Color.Black,
-    onPrimary = Color.Black,
-    onBackground = Color.White,
-    onSurface = Color.White
-)
+import androidx.compose.ui.graphics.lerp
 
 @Composable
 fun VaachakTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    isEinkMode: Boolean = false, // We'll pull this from settings
+    themeMode: ThemeMode = ThemeMode.E_INK,
+    contrast: Float = 0.5f, // 0.0f (soft) to 1.0f (sharp/pure black)
+    isEinkMode: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        isEinkMode -> lightColorScheme(
-            primary = PureBlack,
-            background = PureWhite,
-            surface = PureWhite,
-            onPrimary = PureWhite,
-            onBackground = PureBlack,
-            onSurface = PureBlack
-        )
-        darkTheme -> darkColorScheme(
+    val colorScheme = when (themeMode) {
+        ThemeMode.E_INK -> {
+            // Sharpen colors based on contrast slider
+            val contrastColor = lerp(Color.Gray, PureBlack, contrast)
+            lightColorScheme(
+                primary = PureBlack,
+                onPrimary = PureWhite,
+                background = PureWhite,
+                surface = PureWhite,
+                onBackground = PureBlack,
+                onSurface = PureBlack,
+                outline = contrastColor, // Sharper borders/dividers
+                secondary = contrastColor // Sharper supporting text
+            )
+        }
+        ThemeMode.DARK -> darkColorScheme(
             primary = PureWhite,
+            onPrimary = PureBlack,
             background = PureBlack,
-            surface = Color(0xFF121212)
+            surface = DarkSurface,
+            onBackground = PureWhite,
+            onSurface = PureWhite
         )
-        else -> lightColorScheme(
+        ThemeMode.LIGHT -> lightColorScheme(
             primary = PureBlack,
             background = SoftWhite,
             surface = PureWhite
@@ -61,3 +49,8 @@ fun VaachakTheme(
     )
 }
 
+enum class ThemeMode {
+    LIGHT,
+    DARK,
+    E_INK
+}

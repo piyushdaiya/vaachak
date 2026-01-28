@@ -2,13 +2,14 @@ package io.github.piyushdaiya.vaachak.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// E-ink Optimized Palette
-val PureWhite = Color(0xFFFFFFFF)
+// High Contrast E-ink Palette
 val PureBlack = Color(0xFF000000)
-val HighContrastGray = Color(0xFF757575)
+val PureWhite = Color(0xFFFFFFFF)
+val SoftWhite = Color(0xFFFAFAFA)
 
-// Standard Palette
-val SlateGray = Color(0xFF2F3E46)
-val SoftWhite = Color(0xFFF8F9FA)
-val AccentGold = Color(0xFFC0A080) // Nice for "Sepia" mode later
+// UI Accent Colors
+val LightGray = Color(0xFFF5F5F5)
+val DarkSurface = Color(0xFF121212)
+val SepiaBackground = Color(0xFFF4ECD8)
+val SepiaText = Color(0xFF5B4636)
 

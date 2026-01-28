@@ -12,6 +12,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -23,11 +24,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import io.github.piyushdaiya.vaachak.data.local.BookEntity
-import androidx.compose.material.icons.filled.AutoAwesome
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,20 +40,11 @@ fun BookshelfScreen(
     val libraryBooks by viewModel.filteredLibraryBooks.collectAsState()
     val continueReadingBooks by viewModel.recentBooks.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
-    val message by viewModel.snackbarMessage
     val sortOrder by viewModel.sortOrder.collectAsState()
     var showSortMenu by remember { mutableStateOf(false) }
 
-    // --- RECAP STATES ---
     val recapState by viewModel.recapState.collectAsState()
     val loadingUri by viewModel.isLoadingRecap.collectAsState()
-
-    LaunchedEffect(message) {
-        message?.let {
-            snackbarHostState.showSnackbar(it)
-            viewModel.snackbarMessage.value = null
-        }
-    }
 
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -64,19 +54,10 @@ fun BookshelfScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Vaachak", fontWeight = FontWeight.Bold) },
-                actions = {
-                    // NEW: GLOBAL RECALL BUTTON
-                    IconButton(onClick = onRecallClick) {
-                        Icon(
-                            imageVector = Icons.Default.AutoAwesome,
-                            contentDescription = "Session Recall",
-                            tint = Color.Black
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+            // Standardized v1.7 Header
+            BookshelfHeader(
+                onRecallClick = onRecallClick,
+                onSettingsClick = { /* Handle global settings if needed */ }
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -93,29 +74,16 @@ fun BookshelfScreen(
         }
     ) { padding ->
         if (allBooks.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "Your bookshelf is empty.\nTap + to add a book.",
-                    color = Color.Gray,
-                    textAlign = TextAlign.Center
-                )
-            }
+            EmptyShelfPlaceholder(padding)
         } else {
             LazyColumn(
                 modifier = Modifier.padding(padding).fillMaxSize().background(Color.White),
                 contentPadding = PaddingValues(bottom = 88.dp)
             ) {
+                // SECTION: CONTINUE READING
                 if (continueReadingBooks.isNotEmpty() && searchQuery.isEmpty()) {
                     item {
-                        Text(
-                            text = "Continue Reading",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(16.dp)
-                        )
+                        BookshelfSectionLabel("Continue Reading")
                         LazyRow(
                             contentPadding = PaddingValues(horizontal = 16.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -123,7 +91,8 @@ fun BookshelfScreen(
                             items(continueReadingBooks, key = { it.id }) { book ->
                                 BookCard(
                                     book = book,
-                                    isCompact = true, // Hero style for recent books
+                                    isCompact = true,
+                                    showRecap = true,
                                     isLoadingRecap = loadingUri == book.uriString,
                                     onClick = { onBookClick(book.uriString) },
                                     onDelete = { viewModel.deleteBook(book.id) },
@@ -140,78 +109,25 @@ fun BookshelfScreen(
                     }
                 }
 
+                // SECTION: LIBRARY SEARCH & SORT
                 item {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "My Library",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-
-                            Box {
-                                IconButton(onClick = { showSortMenu = true }) {
-                                    Icon(Icons.Default.Sort, contentDescription = "Sort")
-                                }
-                                DropdownMenu(
-                                    expanded = showSortMenu,
-                                    onDismissRequest = { showSortMenu = false }
-                                ) {
-                                    DropdownMenuItem(
-                                        text = { Text("Title") },
-                                        onClick = { viewModel.updateSortOrder(SortOrder.TITLE); showSortMenu = false },
-                                        leadingIcon = { if(sortOrder == SortOrder.TITLE) Icon(Icons.Default.Check, null) }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Author") },
-                                        onClick = { viewModel.updateSortOrder(SortOrder.AUTHOR); showSortMenu = false },
-                                        leadingIcon = { if(sortOrder == SortOrder.AUTHOR) Icon(Icons.Default.Check, null) }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Recent Added") },
-                                        onClick = { viewModel.updateSortOrder(SortOrder.DATE_ADDED); showSortMenu = false },
-                                        leadingIcon = { if(sortOrder == SortOrder.DATE_ADDED) Icon(Icons.Default.Check, null) }
-                                    )
-                                }
-                            }
+                    LibraryControls(
+                        searchQuery = searchQuery,
+                        sortOrder = sortOrder,
+                        showSortMenu = showSortMenu,
+                        onSearchChange = { viewModel.updateSearchQuery(it) },
+                        onSortClick = { showSortMenu = true },
+                        onSortDismiss = { showSortMenu = false },
+                        onSortSelect = {
+                            viewModel.updateSortOrder(it)
+                            showSortMenu = false
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        OutlinedTextField(
-                            value = searchQuery,
-                            onValueChange = { viewModel.updateSearchQuery(it) },
-                            modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("Search by title...") },
-                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                            trailingIcon = {
-                                if (searchQuery.isNotEmpty()) {
-                                    IconButton(onClick = { viewModel.updateSearchQuery("") }) {
-                                        Icon(Icons.Default.Close, contentDescription = "Clear")
-                                    }
-                                }
-                            },
-                            singleLine = true,
-                            shape = MaterialTheme.shapes.medium
-                        )
-                    }
+                    )
                 }
 
+                // SECTION: LIBRARY GRID
                 if (libraryBooks.isEmpty() && searchQuery.isNotEmpty()) {
-                    item {
-                        Column(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 64.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Icon(Icons.Default.Search, null, Modifier.size(64.dp), Color.LightGray)
-                            Spacer(Modifier.height(16.dp))
-                            Text("No books found for \"$searchQuery\"", color = Color.Gray)
-                            TextButton(onClick = { viewModel.updateSearchQuery("") }) { Text("Clear search") }
-                        }
-                    }
+                    item { SearchEmptyState(searchQuery) { viewModel.updateSearchQuery("") } }
                 } else {
                     val bookRows = libraryBooks.chunked(3)
                     items(bookRows) { rowBooks ->
@@ -224,6 +140,7 @@ fun BookshelfScreen(
                                     BookCard(
                                         book = book,
                                         isCompact = true,
+                                        showRecap = false,
                                         isLoadingRecap = loadingUri == book.uriString,
                                         onClick = { onBookClick(book.uriString) },
                                         onDelete = { viewModel.deleteBook(book.id) },
@@ -240,8 +157,7 @@ fun BookshelfScreen(
             }
         }
 
-        // --- GLOBAL RECAP DIALOG ---
-        // This watches for any recap generated in the ViewModel map
+        // Recap Dialogs
         continueReadingBooks.forEach { book ->
             recapState[book.uriString]?.let { recap ->
                 AlertDialog(
@@ -267,11 +183,140 @@ fun BookshelfScreen(
     }
 }
 
+// --- STANDARDIZED COMPONENTS (v1.7) ---
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun BookshelfHeader(
+    onRecallClick: () -> Unit,
+    onSettingsClick: () -> Unit
+) {
+    CenterAlignedTopAppBar(
+        title = {
+            Text(
+                "My Bookshelf",
+                style = MaterialTheme.typography.titleMedium, // Standardized Size
+                fontWeight = FontWeight.Bold
+            )
+        },
+        actions = {
+            IconButton(onClick = onRecallClick) {
+                Icon(Icons.Default.AutoAwesome, contentDescription = "Recall", tint = Color.Black)
+            }
+                  },
+        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.White)
+    )
+}
+
+@Composable
+fun BookshelfSectionLabel(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelLarge, // Standardized Size
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier.padding(16.dp)
+    )
+}
+
+@Composable
+fun LibraryControls(
+    searchQuery: String,
+    sortOrder: SortOrder,
+    showSortMenu: Boolean,
+    onSearchChange: (String) -> Unit,
+    onSortClick: () -> Unit,
+    onSortDismiss: () -> Unit,
+    onSortSelect: (SortOrder) -> Unit
+) {
+    Column(modifier = Modifier.padding(16.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "My Library",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+
+            Box {
+                IconButton(onClick = onSortClick) {
+                    Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort")
+                }
+                DropdownMenu(expanded = showSortMenu, onDismissRequest = onSortDismiss) {
+                    DropdownMenuItem(
+                        text = { Text("Title") },
+                        onClick = { onSortSelect(SortOrder.TITLE) },
+                        leadingIcon = { if(sortOrder == SortOrder.TITLE) Icon(Icons.Default.Check, null) }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Author") },
+                        onClick = { onSortSelect(SortOrder.AUTHOR) },
+                        leadingIcon = { if(sortOrder == SortOrder.AUTHOR) Icon(Icons.Default.Check, null) }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Recent Added") },
+                        onClick = { onSortSelect(SortOrder.DATE_ADDED) },
+                        leadingIcon = { if(sortOrder == SortOrder.DATE_ADDED) Icon(Icons.Default.Check, null) }
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = onSearchChange,
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("Search by title...") },
+            leadingIcon = { Icon(Icons.Default.Search, null) },
+            trailingIcon = {
+                if (searchQuery.isNotEmpty()) {
+                    IconButton(onClick = { onSearchChange("") }) {
+                        Icon(Icons.Default.Close, null)
+                    }
+                }
+            },
+            singleLine = true,
+            shape = MaterialTheme.shapes.medium
+        )
+    }
+}
+
+@Composable
+fun EmptyShelfPlaceholder(padding: PaddingValues) {
+    Box(
+        modifier = Modifier.fillMaxSize().padding(padding),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "Your bookshelf is empty.\nTap + to add a book.",
+            color = Color.Gray,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+@Composable
+fun SearchEmptyState(query: String, onClear: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 64.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(Icons.Default.Search, null, Modifier.size(64.dp), Color.LightGray)
+        Spacer(Modifier.height(16.dp))
+        Text("No books found for \"$query\"", color = Color.Gray)
+        TextButton(onClick = onClear) { Text("Clear search") }
+    }
+}
+
+// BookCard remains largely the same but uses theme-consistent text sizes
 @Composable
 fun BookCard(
     book: BookEntity,
     isCompact: Boolean = false,
     isLoadingRecap: Boolean = false,
+    showRecap: Boolean = false, // NEW FLAG
     onClick: () -> Unit,
     onDelete: () -> Unit,
     onRecapClick: () -> Unit
@@ -282,9 +327,8 @@ fun BookCard(
         modifier = Modifier
             .padding(4.dp)
             .width(if (isCompact) 110.dp else 150.dp)
-            .wrapContentHeight()
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
+        Box {
             Column {
                 Box(
                     modifier = Modifier
@@ -303,80 +347,53 @@ fun BookCard(
                     } else {
                         Text(
                             text = book.title.take(1).uppercase(),
-                            fontSize = if (isCompact) 24.sp else 48.sp,
-                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.headlineMedium,
                             color = Color.White
                         )
                     }
-
                 }
-
                 Column(modifier = Modifier.padding(8.dp)) {
                     Text(
                         text = book.title,
+                        style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
-                        fontSize = if (isCompact) 12.sp else 14.sp,
-                        maxLines = if (isCompact) 1 else 2,
-                        overflow = TextOverflow.Ellipsis,
-                        color = Color.Black
-                    )
-                    Text(
-                        text = book.author,
-                        fontSize = 12.sp,
-                        color = Color.Gray,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    // NEW: Persistent Progress Text
+                    Text(
+                        text = book.author,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray,
+                        maxLines = 1
+                    )
                     Text(
                         text = "${(book.progress * 100).toInt()}% read",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Color.DarkGray,
-                        modifier = Modifier.padding(top = 2.dp)
+                        style = MaterialTheme.typography.labelSmall, // Clean E-ink style
+                        color = Color.DarkGray
                     )
                 }
             }
-
-            // --- ACTION BUTTONS OVERLAY ---
-            Row(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(4.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                // QUICK RECAP BUTTON
-                IconButton(
-                    onClick = onRecapClick,
-                    modifier = Modifier
-                        .size(if (isCompact) 26.dp else 32.dp)
-                        .background(Color.White.copy(alpha = 0.8f), shape = CircleShape)
-                ) {
-                    if (isLoadingRecap) {
-                        CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = Color.Black)
-                    } else {
-                        Icon(
-                            imageVector = Icons.Default.History,
-                            contentDescription = "Recap",
-                            tint = Color.Black,
-                            modifier = Modifier.size(if (isCompact) 16.dp else 20.dp)
-                        )
+            // Overlays (Recap/Delete)
+            Row(modifier = Modifier.align(Alignment.TopEnd).padding(4.dp)) {
+                // ONLY SHOW RECAP IF FLAG IS TRUE
+                if (showRecap) {
+                    IconButton(
+                        onClick = onRecapClick,
+                        modifier = Modifier.size(26.dp).background(Color.White.copy(0.8f), CircleShape)
+                    ) {
+                        if (isLoadingRecap) {
+                            CircularProgressIndicator(modifier = Modifier.size(12.dp), strokeWidth = 2.dp, color = Color.Black)
+                        } else {
+                            Icon(Icons.Default.History, null, Modifier.size(16.dp))
+                        }
                     }
                 }
-
-                // DELETE BUTTON
+                Spacer(Modifier.width(4.dp))
                 IconButton(
                     onClick = onDelete,
-                    modifier = Modifier
-                        .size(if (isCompact) 26.dp else 32.dp)
-                        .background(Color.Black.copy(alpha = 0.6f), shape = CircleShape)
+                    modifier = Modifier.size(26.dp).background(Color.Black.copy(0.6f), CircleShape)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Remove",
-                        tint = Color.White,
-                        modifier = Modifier.size(if (isCompact) 14.dp else 18.dp)
-                    )
+                    Icon(Icons.Default.Delete, null, Modifier.size(14.dp), Color.White)
                 }
             }
         }

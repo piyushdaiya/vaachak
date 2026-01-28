@@ -33,6 +33,10 @@ import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.node.DelegatableNode
 import androidx.compose.material.icons.automirrored.filled.List
+import io.github.piyushdaiya.vaachak.ui.theme.ThemeMode
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
     private val settingsViewModel: SettingsViewModel by viewModels()
@@ -42,12 +46,19 @@ class MainActivity : AppCompatActivity() {
         val intentUriString = intent?.data?.toString()
 
         setContent {
-            val isEinkEnabled by settingsViewModel.isEinkEnabled.collectAsState()
+            // 1. Observe the persistent theme mode from DataStore
+            val currentTheme by settingsViewModel.themeMode.collectAsState()
 
+            // 2. Logic to determine if we should disable ripple indications (for E-ink)
+            val isEinkActive = currentTheme == ThemeMode.E_INK
+            val einkContrastValue by settingsViewModel.einkContrast.collectAsState()
             CompositionLocalProvider(
-                LocalIndication provides if (isEinkEnabled) NoIndication else LocalIndication.current
+                LocalIndication provides if (isEinkActive) NoIndication else LocalIndication.current
             ){
-                VaachakTheme(isEinkMode = isEinkEnabled) {
+                VaachakTheme(
+                    themeMode = currentTheme,
+                    contrast = einkContrastValue
+                ) {
                     var currentBookUri by remember { mutableStateOf(intentUriString) }
                     var selectedTab by remember { mutableIntStateOf(0) }
                     var showSettingsOnHome by remember { mutableStateOf(false) }
@@ -81,7 +92,7 @@ class MainActivity : AppCompatActivity() {
                             Scaffold(
                                 topBar = {
                                     VaachakHeader(
-                                        title = "My Bookshelf",
+                                        title = "Vaachak",
                                         showBackButton = false,
                                         onBack = { /* No-op */ },
                                         onSettingsClick = { showSettingsOnHome = true }
@@ -110,7 +121,8 @@ class MainActivity : AppCompatActivity() {
                                     }
                                 }
                             ) { padding ->
-                                Surface(modifier = Modifier.padding(padding), color = Color.White) {
+                                Surface(modifier = Modifier.padding(padding).fillMaxSize(),
+                                    color = MaterialTheme.colorScheme.background) {
                                     when (selectedTab) {
                                         0 -> BookshelfScreen(
                                             onBookClick = { uri -> currentBookUri = uri },
@@ -133,7 +145,7 @@ class MainActivity : AppCompatActivity() {
                         if (showSessionHistory) {
                             Surface(
                                 modifier = Modifier.fillMaxSize().zIndex(6f),
-                                color = Color.White
+                                color = MaterialTheme.colorScheme.surface
                             ) {
                                 io.github.piyushdaiya.vaachak.ui.session.SessionHistoryScreen(
                                     onBack = { showSessionHistory = false },
@@ -149,7 +161,7 @@ class MainActivity : AppCompatActivity() {
                         if (showSettingsOnHome) {
                             Surface(
                                 modifier = Modifier.fillMaxSize().zIndex(5f),
-                                color = Color.White
+                                color = MaterialTheme.colorScheme.surface
                             ) {
                                 SettingsScreen(onBack = { showSettingsOnHome = false })
                             }
@@ -183,5 +195,4 @@ class MainActivity : AppCompatActivity() {
         override fun hashCode(): Int = -1
         override fun equals(other: Any?): Boolean = other === this
     }
-
-}
+  }

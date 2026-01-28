@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import androidx.datastore.preferences.core.floatPreferencesKey
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -12,14 +13,14 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.edit
+import io.github.piyushdaiya.vaachak.ui.theme.ThemeMode
 
-import kotlinx.coroutines.flow.map
 
 // Create the DataStore instance
 private val Context.dataStore by preferencesDataStore(name = "user_settings")
 val Context.settingsDataStore by preferencesDataStore(name = "settings")
 val AUTO_SAVE_RECAPS_KEY = booleanPreferencesKey("auto_save_recaps")
+private val THEME_KEY = stringPreferencesKey("theme_mode")
 @Singleton
 class SettingsRepository @Inject constructor(private val dataStore: DataStore<Preferences>,
     @ApplicationContext private val context: Context
@@ -61,6 +62,25 @@ class SettingsRepository @Inject constructor(private val dataStore: DataStore<Pr
         context.dataStore.edit { prefs ->
             prefs.clear()
         }
+    }
+    val themeMode: Flow<ThemeMode> = dataStore.data.map { prefs ->
+        val name = prefs[THEME_KEY] ?: ThemeMode.E_INK.name
+        ThemeMode.valueOf(name)
+    }
+
+    suspend fun setThemeMode(mode: ThemeMode) {
+        dataStore.edit { prefs ->
+            prefs[THEME_KEY] = mode.name
+        }
+    }
+
+    // In SettingsRepository.kt
+    val CONTRAST_KEY = floatPreferencesKey("eink_contrast")
+
+    val einkContrast: Flow<Float> = dataStore.data.map { it[CONTRAST_KEY] ?: 0.5f }
+
+    suspend fun setContrast(value: Float) {
+        dataStore.edit { it[CONTRAST_KEY] = value }
     }
 
 }
