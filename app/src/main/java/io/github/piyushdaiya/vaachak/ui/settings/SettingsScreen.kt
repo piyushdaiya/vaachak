@@ -1,57 +1,79 @@
 package io.github.piyushdaiya.vaachak.ui.settings
 
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Face
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import io.github.piyushdaiya.vaachak.ui.theme.ThemeMode
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.ui.graphics.lerp
-import android.content.Intent
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.launch
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
+    // --- STATE ---
     val geminiKey by viewModel.geminiKey.collectAsState()
     val cfUrl by viewModel.cfUrl.collectAsState()
     val cfToken by viewModel.cfToken.collectAsState()
     val isAutoSaveEnabled by viewModel.isAutoSaveRecapsEnabled.collectAsState()
-    var showSavedMessage by remember { mutableStateOf(false) }
-    var showResetDialog by remember { mutableStateOf(false) }
-    val keyboardController = LocalSoftwareKeyboardController.current
-    // NEW: Observe the persistent theme mode
     val currentTheme by viewModel.themeMode.collectAsState()
     val isEinkEnabled by viewModel.isEinkEnabled.collectAsState()
     val contrast by viewModel.einkContrast.collectAsState()
-
-    val context = LocalContext.current
     val useEmbeddedDictionary by viewModel.useEmbeddedDictionary.collectAsState()
     val dictionaryFolder by viewModel.dictionaryFolder.collectAsState()
 
-    // NEW: The Folder Picker Launcher
+    // --- UI STATE ---
+    var showResetDialog by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val context = LocalContext.current
+
+    // --- LAUNCHER ---
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
     ) { uri ->
         uri?.let {
-            // Fix for "Unresolved reference" on Intent flags
             context.contentResolver.takePersistableUriPermission(
                 it,
                 Intent.FLAG_GRANT_READ_URI_PERMISSION
@@ -59,280 +81,281 @@ fun SettingsScreen(
             viewModel.updateDictionaryFolder(it.toString())
         }
     }
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background) // Respects Eink/Theme colors
-            .padding(16.dp)
-            .imePadding()
-            .verticalScroll(rememberScrollState())
-    ) {
-        // --- TOP NAVIGATION ---
-        TextButton(
-            onClick = onBack,
-            modifier = Modifier.padding(bottom = 8.dp),
-            contentPadding = PaddingValues(0.dp) // Align with edge
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Back to My Bookshelf", style = MaterialTheme.typography.labelLarge)
-            }
-        }
 
-        HorizontalDivider(modifier = Modifier.padding(bottom = 16.dp), thickness = 0.5.dp)
-
-        // --- DISPLAY SETTINGS (THEME SELECTION) ---
-        Text("Display Settings", style = MaterialTheme.typography.titleMedium)
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text(
-            "App Theme",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.primary
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Standardized Segmented Button Row for Theme Selection
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            ThemeMode.entries.forEachIndexed { index, mode ->
-                SegmentedButton(
-                    selected = currentTheme == mode,
-                    onClick = { viewModel.updateTheme(mode) },
-                    shape = SegmentedButtonDefaults.itemShape(index, ThemeMode.entries.size),
-                    label = {
-                        Text(mode.name.lowercase().replaceFirstChar { it.uppercase() })
-                    }
-                )
-            }
-        }
-        // NEW: E-ink Contrast Slider (Conditional)
-        if (currentTheme == ThemeMode.E_INK) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 16.dp)
-            ) {
-                Text(
-                    text = "E-ink Contrast / Sharpness",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary
-                )
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    // Using a standard icon that always exists
-                    Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
-                    )
-
-                    Slider(
-                        value = contrast,
-                        onValueChange = { viewModel.updateContrast(it) },
-                        // 3 steps + 2 ends = 5 positions (0, 0.25, 0.5, 0.75, 1.0)
-                        steps = 3,
-                        modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
-                        colors = SliderDefaults.colors(
-                            thumbColor = Color.Black,
-                            activeTrackColor = Color.Black,
-                            activeTickColor = Color.White.copy(alpha = 0.5f), // Marks on the black line
-                            inactiveTickColor = Color.Black.copy(alpha = 0.3f) // Marks on the gray line
-                        )
-                    )
-
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
                     Text(
-                        text = "${(contrast * 100).toInt()}%",
-                        style = MaterialTheme.typography.labelSmall,
-                        modifier = Modifier.width(32.dp)
+                        "Settings",
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold)
                     )
-                }
-            }
-        }
-        Spacer(modifier = Modifier.height(16.dp))
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
+            )
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
+    ) { padding ->
         Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .background(Color.LightGray.copy(alpha = 0.2f), MaterialTheme.shapes.small)
-                .padding(8.dp)
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 16.dp)
+                .verticalScroll(rememberScrollState())
+                .imePadding(),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            Text(
-                "Sharpness Preview",
-                style = MaterialTheme.typography.labelSmall,
-                modifier = Modifier.padding(bottom = 4.dp)
-            )
+
+            // ==========================================
+            // 1. HEADER ACTION AREA
+            // ==========================================
             Row(
-                modifier = Modifier.fillMaxWidth().height(20.dp),
-                horizontalArrangement = Arrangement.spacedBy(2.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // We create 5 boxes representing different gray intensities
-                val grayShades = listOf(0.2f, 0.4f, 0.6f, 0.8f, 1.0f)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Preferences",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Customize your reading engine",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray
+                    )
+                }
 
-                grayShades.forEach { weight ->
-                    // This mimics the 'lerp' logic in your Theme.kt
-                    val baseColor = Color.Black.copy(alpha = weight)
-                    val sharpenedColor = androidx.compose.ui.graphics.lerp(baseColor, Color.Black, contrast)
+                FilledTonalButton(
+                    onClick = {
+                        keyboardController?.hide()
+                        scope.launch {
+                            try {
+                                viewModel.saveSettings()
+                                snackbarHostState.showSnackbar("✅ Settings saved successfully")
+                            } catch (e: Exception) {
+                                snackbarHostState.showSnackbar("❌ Error: ${e.localizedMessage}")
+                            }
+                        }
+                    },
+                    shape = RoundedCornerShape(8.dp),
+                    colors = if (isEinkEnabled)
+                        ButtonDefaults.filledTonalButtonColors(containerColor = Color.Black, contentColor = Color.White)
+                    else ButtonDefaults.filledTonalButtonColors()
+                ) {
+                    Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Save")
+                }
+            }
 
-                    Box(
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+            // ==========================================
+            // 2. DISPLAY SETTINGS
+            // ==========================================
+            SettingsSection(title = "Display", icon = Icons.Default.Face) {
+                Text(
+                    "Theme Selection",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    ThemeMode.entries.forEachIndexed { index, mode ->
+                        SegmentedButton(
+                            selected = currentTheme == mode,
+                            onClick = { viewModel.updateTheme(mode) },
+                            shape = SegmentedButtonDefaults.itemShape(index, ThemeMode.entries.size),
+                            label = { Text(mode.name.lowercase().replaceFirstChar { it.uppercase() }) }
+                        )
+                    }
+                }
+
+                if (currentTheme == ThemeMode.E_INK) {
+                    Spacer(modifier = Modifier.height(20.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Settings, null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("E-ink Sharpness", style = MaterialTheme.typography.labelMedium)
+                    }
+
+                    var sliderPosition by remember(contrast) { mutableFloatStateOf(contrast) }
+                    val sharpnessDescription = when {
+                        sliderPosition < 0.1f -> "Standard (No enhancement)"
+                        sliderPosition < 0.4f -> "Enhanced Readability"
+                        sliderPosition < 0.7f -> "Bold / High Contrast"
+                        else -> "Maximum Sharpness (Pure Black)"
+                    }
+
+                    Slider(
+                        value = sliderPosition,
+                        onValueChange = {
+                            sliderPosition = it
+                            viewModel.updateContrast(it)
+                        },
+                        steps = 3,
+                        modifier = Modifier.padding(horizontal = 8.dp),
+                        colors = SliderDefaults.colors(thumbColor = Color.Black, activeTrackColor = Color.Black)
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
                         modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .background(sharpenedColor)
+                            .fillMaxWidth()
+                            .height(24.dp)
+                            .border(1.dp, Color.Gray.copy(alpha=0.5f), RoundedCornerShape(4.dp))
+                            .padding(2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        listOf(0.1f, 0.3f, 0.5f, 0.7f, 0.9f).forEach { weight ->
+                            val baseColor = Color.Black.copy(alpha = weight)
+                            val sharpened = lerp(baseColor, Color.Black, sliderPosition)
+                            Box(modifier = Modifier.weight(1f).fillMaxHeight().background(sharpened))
+                        }
+                    }
+                    Text(
+                        text = "Preview: $sharpnessDescription",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.DarkGray,
+                        modifier = Modifier.padding(top = 6.dp, start = 4.dp)
                     )
                 }
             }
-        }
 
-        // --- DISPLAY SETTINGS --- (Keep existing until the end of E-ink sections)
-
-        Spacer(modifier = Modifier.height(24.dp))
-        HorizontalDivider(thickness = 0.5.dp)
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // --- NEW: READING FEATURES SECTION ---
-        Text("Reading Features", style = MaterialTheme.typography.titleMedium)
-        Spacer(modifier = Modifier.height(8.dp))
-
-        ListItem(
-            headlineContent = { Text("Embedded Dictionary") },
-            supportingContent = {
-                Text("Show definitions inside Vaachak using local data.")
-            },
-            trailingContent = {
-                Switch(
+            // ==========================================
+            // 3. READING FEATURES
+            // ==========================================
+            SettingsSection(title = "Reading", icon = Icons.Default.Info) {
+                SettingsToggleRow(
+                    label = "External Dictionary",
+                    description = "Use local StarDict files",
                     checked = useEmbeddedDictionary,
                     onCheckedChange = { viewModel.toggleEmbeddedDictionary(it) }
                 )
-            }
-        )
-        // NEW: Folder Selection UI
-        if (useEmbeddedDictionary) {
-            Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                OutlinedButton(
-                    onClick = { launcher.launch(null) },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(if (dictionaryFolder.isEmpty()) "Select StarDict Folder" else "Change StarDict Folder")
+
+                if (useEmbeddedDictionary) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedButton(
+                        onClick = { launcher.launch(null) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(Icons.Default.Edit, null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(if (dictionaryFolder.isEmpty()) "Select Dictionary Folder" else "Change Folder")
+                    }
+
+                    if (dictionaryFolder.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        val displayPath = try {
+                            val uri = Uri.parse(dictionaryFolder)
+                            (uri.lastPathSegment ?: dictionaryFolder).replace("primary:", "Internal Storage/").replace("tree/", "")
+                        } catch (e: Exception) { dictionaryFolder }
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha=0.3f), RoundedCornerShape(4.dp))
+                                .padding(8.dp)
+                        ) {
+                            Text("📂 Selected Location:", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                            Text(displayPath, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        }
+                    } else {
+                        Text("⚠️ No folder selected", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 4.dp))
+                    }
                 }
-                if (dictionaryFolder.isNotEmpty()) {
-                    Text(
-                        text = "Folder Linked Successfully",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.Gray,
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
-                }
-            }
-        }
-        Spacer(modifier = Modifier.height(16.dp))
-        ListItem(
-            headlineContent = { Text("Auto-Save AI Recaps") },
-            supportingContent = { Text("Automatically save generated summaries to your highlights.") },
-            trailingContent = {
-                Switch(
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+                SettingsToggleRow(
+                    label = "Auto-Save Recaps",
+                    description = "Save AI summaries to highlights",
                     checked = isAutoSaveEnabled,
                     onCheckedChange = { viewModel.toggleAutoSaveRecaps(it) }
                 )
-            },
-            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-        )
-
-        HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), thickness = 0.5.dp)
-
-        // --- AI SETTINGS ---
-        Text("AI Settings", style = MaterialTheme.typography.headlineSmall)
-        Spacer(modifier = Modifier.height(16.dp))
-
-        OutlinedTextField(
-            value = geminiKey,
-            onValueChange = { viewModel.updateGemini(it) },
-            label = { Text("Gemini API Key") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-
-        OutlinedTextField(
-            value = cfUrl,
-            onValueChange = { viewModel.updateCfUrl(it) },
-            label = { Text("Cloudflare Worker URL") },
-            placeholder = { Text("https://your-worker.workers.dev/") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-
-        OutlinedTextField(
-            value = cfToken,
-            onValueChange = { viewModel.updateCfToken(it) },
-            label = { Text("Cloudflare Auth Token") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true
-        )
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // --- SAVE ACTION ---
-        Button(
-            onClick = {
-                keyboardController?.hide()
-                viewModel.saveSettings()
-                showSavedMessage = true
-            },
-            modifier = Modifier.align(Alignment.End),
-                    // High contrast for E-ink
-            colors =if (isEinkEnabled) ButtonDefaults.buttonColors(containerColor = Color.Black) else ButtonDefaults.buttonColors()
-        ) {
-            Text("Save All Settings")
-        }
-
-        if (showSavedMessage) {
-            Text(
-                "Settings Saved Successfully!",
-                color = if (isEinkEnabled) MaterialTheme.colorScheme.onBackground else Color(0xFF2E7D32),
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(top = 16.dp)
-            )
-            LaunchedEffect(Unit) {
-                kotlinx.coroutines.delay(3000)
-                showSavedMessage = false
             }
-        }
 
-        Spacer(modifier = Modifier.height(32.dp))
-        HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), thickness = 0.5.dp)
+            // ==========================================
+            // 4. AI CONFIGURATION (SECURED)
+            // ==========================================
+            SettingsSection(title = "Intelligence", icon = Icons.Default.Share) {
+                // OWASP: Masked Input & Sanitized
+                SettingsTextField(
+                    value = geminiKey,
+                    onValueChange = { viewModel.updateGemini(it) },
+                    label = "Gemini API Key",
+                    icon = Icons.Default.Lock,
+                    isSensitive = true // Masks Input
+                )
 
-        // --- DANGER ZONE ---
-        Text("Danger Zone", style = MaterialTheme.typography.titleMedium, color = Color.Red)
-        Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-        OutlinedButton(
-            onClick = { showResetDialog = true },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Red),
-            border = BorderStroke(1.dp, Color.Red)
-        ) {
-            Text("Reset All Settings to Default")
+                // OWASP: URL Validation & Sanitization
+                SettingsTextField(
+                    value = cfUrl,
+                    onValueChange = { viewModel.updateCfUrl(it) },
+                    label = "Cloudflare URL",
+                    placeholder = "https://worker...",
+                    icon = Icons.Default.Info,
+                    isUrl = true
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // OWASP: Masked Input
+                SettingsTextField(
+                    value = cfToken,
+                    onValueChange = { viewModel.updateCfToken(it) },
+                    label = "Auth Token",
+                    icon = Icons.Default.Person,
+                    isSensitive = true // Masks Input
+                )
+            }
+
+            // ==========================================
+            // 5. DANGER ZONE
+            // ==========================================
+            SettingsSection(
+                title = "Danger Zone",
+                icon = Icons.Default.Warning,
+                borderColor = MaterialTheme.colorScheme.error.copy(alpha = 0.5f),
+                titleColor = MaterialTheme.colorScheme.error
+            ) {
+                OutlinedButton(
+                    onClick = { showResetDialog = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.3f))
+                ) {
+                    Text("Reset All Settings")
+                }
+            }
+            Spacer(modifier = Modifier.height(32.dp))
         }
 
         if (showResetDialog) {
             AlertDialog(
                 onDismissRequest = { showResetDialog = false },
-                title = { Text("Reset Settings?") },
-                text = { Text("This will clear your API keys and reset display preferences. This action cannot be undone.") },
+                title = { Text("Factory Reset?") },
+                text = { Text("This will erase all API keys and preferences.") },
                 confirmButton = {
-                    TextButton(
-                        onClick = {
-                            viewModel.resetSettings()
-                            showResetDialog = false
-                        }
-                    ) { Text("Reset", color = Color.Red) }
+                    TextButton(onClick = {
+                        viewModel.resetSettings()
+                        showResetDialog = false
+                        scope.launch { snackbarHostState.showSnackbar("Settings reset") }
+                    }) { Text("Reset", color = Color.Red) }
                 },
                 dismissButton = {
                     TextButton(onClick = { showResetDialog = false }) { Text("Cancel") }
@@ -340,4 +363,104 @@ fun SettingsScreen(
             )
         }
     }
+}
+
+// ==========================================
+// SECURE HELPER COMPOSABLES
+// ==========================================
+
+@Composable
+fun SettingsSection(
+    title: String,
+    icon: ImageVector,
+    borderColor: Color = MaterialTheme.colorScheme.outlineVariant,
+    titleColor: Color = MaterialTheme.colorScheme.onSurface,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, borderColor, RoundedCornerShape(12.dp))
+            .padding(16.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 16.dp)) {
+            Icon(imageVector = icon, contentDescription = null, tint = titleColor, modifier = Modifier.size(20.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(text = title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = titleColor)
+        }
+        content()
+    }
+}
+
+@Composable
+fun SettingsToggleRow(label: String, description: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+            Text(description, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange, modifier = Modifier.scale(0.8f))
+    }
+}
+
+@Composable
+fun SettingsTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    icon: ImageVector,
+    placeholder: String = "",
+    isSensitive: Boolean = false, // Toggle for Password mode
+    isUrl: Boolean = false        // Toggle for URL mode
+) {
+    var passwordVisible by remember { mutableStateOf(false) }
+
+    // OWASP A03: Injection Prevention Sanitizer
+    // This strictly filters input to prevent injection vectors.
+    val sanitize: (String) -> String = { input ->
+        if (isSensitive || isUrl) {
+            // 1. Remove Whitespace (Space, Tab, Newline)
+            //    Prompt Injection often requires spaces to form sentences.
+            //    URL/Token Injection often requires spaces or newlines.
+            // 2. Limit Length to 512 chars (Buffer Overflow protection)
+            input.filter { !it.isWhitespace() }.take(512)
+        } else {
+            input.take(512)
+        }
+    }
+
+    OutlinedTextField(
+        value = value,
+        onValueChange = { onValueChange(sanitize(it)) },
+        label = { Text(label) },
+        placeholder = { if (placeholder.isNotEmpty()) Text(placeholder) },
+        leadingIcon = { Icon(icon, null, modifier = Modifier.size(18.dp)) },
+
+        // OWASP A04: Information Disclosure (Masking)
+        visualTransformation = if (isSensitive && !passwordVisible) PasswordVisualTransformation() else VisualTransformation.None,
+
+        keyboardOptions = KeyboardOptions(
+            keyboardType = if (isUrl) KeyboardType.Uri
+            else if (isSensitive) KeyboardType.Password
+            else KeyboardType.Text
+        ),
+
+        trailingIcon = if (isSensitive) {
+            {
+                val image = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
+                IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                    Icon(imageVector = image, contentDescription = if (passwordVisible) "Hide" else "Show")
+                }
+            }
+        } else null,
+
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = true, // Prevents multi-line paste attacks
+        shape = RoundedCornerShape(8.dp),
+        textStyle = MaterialTheme.typography.bodyMedium
+    )
 }

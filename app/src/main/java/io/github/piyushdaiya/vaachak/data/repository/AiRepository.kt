@@ -9,55 +9,61 @@ import javax.inject.Inject
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.OkHttpClient
-import okhttp3.Request
-import org.json.JSONObject
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
 class AiRepository @Inject constructor(
-        private val settingsRepo: SettingsRepository // Injected Settings
+    private val settingsRepo: SettingsRepository
 ) {
-    val cloudflareClient = OkHttpClient.Builder()
-        .callTimeout(30, java.util.concurrent.TimeUnit.SECONDS) // The -m 30 flag
-        .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS) // Time to establish connection
-        .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)    // Time to wait for image data
+    // 1. Setup Client with 30s Timeout (-m 30)
+    private val cloudflareClient = OkHttpClient.Builder()
+        .callTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
         .build()
 
-    val retrofit = Retrofit.Builder()
-        .baseUrl("https://api.cloudflare.com/") // Placeholder, overridden by @Url
-        .client(cloudflareClient) // ATTACH THE 30s TIMEOUT HERE
+    // 2. Setup Retrofit
+    private val retrofit = Retrofit.Builder()
+        .baseUrl("https://api.cloudflare.com/") // Placeholder
+        .client(cloudflareClient)
         .addConverterFactory(GsonConverterFactory.create())
         .build()
 
-    val cloudflareApi = retrofit.create(CloudflareAiApi::class.java)
-    // Helper to get the Gemini model with the latest key
+    private val cloudflareApi = retrofit.create(CloudflareAiApi::class.java)
+
+    // Helper to get Gemini
     private suspend fun getGeminiModel(): GenerativeModel {
         val key = settingsRepo.geminiKey.first()
-        if (key.isBlank()) throw Exception("Gemini API Key is missing. Please add it in Settings.")
-        return GenerativeModel(modelName = "gemini-2.5-flash", apiKey = key)
+        if (key.isBlank()) throw Exception("Gemini API Key is missing.")
+        return GenerativeModel(modelName = "gemini-2.0-flash", apiKey = key)
     }
 
     suspend fun explainContext(selectedText: String): String {
         return try {
-            val prompt = "Provide a simple, 2-sentence explanation for the term: $selectedText"
+            val prompt = "Provide a simple, 2-sentence explanation for: $selectedText"
             getGeminiModel().generateContent(prompt).text ?: "No explanation."
         } catch (e: Exception) { "Error: ${e.localizedMessage}" }
     }
 
     suspend fun whoIsThis(selectedText: String, bookTitle: String, bookAuthor: String): String {
         return try {
-            val prompt = "I am currently reading '$bookTitle' by $bookAuthor. I have not finished the bookIdentify the character '$selectedText'. STRICTLY avoid future plot spoilers."
+            val prompt = "Reading '$bookTitle' by $bookAuthor. Identify character '$selectedText' without spoilers."
             getGeminiModel().generateContent(prompt).text ?: "No identification."
         } catch (e: Exception) { "Error: ${e.localizedMessage}" }
     }
 
+    // --- FIX: Using correct variable names (cfUrl / cfToken) ---
     suspend fun visualizeText(prompt: String): String = withContext(Dispatchers.IO) {
         try {
-            val url = settingsRepo.cloudflareUrl.first().trim()
-            val token = settingsRepo.cloudflareToken.first().trim()
+            // FIX 1: Referenced correct flow names from SettingsRepository
+            val url = settingsRepo.cfUrl.first().trim()
+            val token = settingsRepo.cfToken.first().trim()
+
+            // FIX 2: Ensure we aren't sending empty requests
+            if (url.isEmpty() || token.isEmpty()) {
+                return@withContext "Error: Cloudflare settings are missing."
+            }
 
             val response = cloudflareApi.generateImage(
                 fullUrl = url,
@@ -68,26 +74,22 @@ class AiRepository @Inject constructor(
             if (response.isSuccessful) {
                 val bytes = response.body()?.bytes()
                 if (bytes != null) {
-                    "BASE64_IMAGE:${android.util.Base64.encodeToString(bytes, android.util.Base64.DEFAULT)}"
+                    "BASE64_IMAGE:${Base64.encodeToString(bytes, Base64.DEFAULT)}"
                 } else "Empty Body"
             } else {
                 "Cloudflare Error: ${response.code()}"
             }
         } catch (e: java.net.SocketTimeoutException) {
-            // This is triggered by the 30s limit
-            "Timeout: Cloudflare took more than 30 seconds to generate the image."
+            "Timeout: Cloudflare took >30s. Try again."
         } catch (e: Exception) {
-            "Total Failure: ${e.localizedMessage}"
+            "Error: ${e.localizedMessage}"
         }
     }
+
     suspend fun getRecallSummary(bookTitle: String, context: String): String {
-        val prompt = """
-        Context: $context
-        Task: Provide a 3-sentence 'Where I left off' summary for '$bookTitle'. 
-        Focus on the current plot tension and key characters present and a brief 'Who's Who' of characters present
-        STRICTLY avoid future spoilers.
-    """.trimIndent()
-        return getGeminiModel().generateContent(prompt).text ?: "Summary unavailable."
+        return try {
+            val prompt = "Context: $context\nTask: 3-sentence summary for '$bookTitle'. No spoilers."
+            getGeminiModel().generateContent(prompt).text ?: "Summary unavailable."
+        } catch (e: Exception) { "Error: ${e.localizedMessage}" }
     }
 }
-

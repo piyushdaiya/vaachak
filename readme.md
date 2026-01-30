@@ -29,6 +29,11 @@ It seamlessly bridges traditional reading with advanced multimodal AI. By levera
 * **Unified Dictionary & AI**: Tapping a word now opens a combined bottom sheet with both local definitions and AI action buttons.
 * **Hybrid Dictionary support**: Embedded lightweight directory support along with BYOD (Bring your own Directory) support.
 * **Style**: Standardized Visualize prompts for high-contrast E-ink minimalist line art.
+* **Interactive Previews**: Added a live "Grayscale Preview" box for E-ink sharpness adjustments.
+* **Security & Stability (OWASP Hardening)**
+  * **Input Sanitization**: Implemented strict filters on API keys and URLs to prevent Prompt Injection and Second-Order Injection attacks.
+  * **Visual Masking**: Gemini keys and Cloudflare tokens are now masked by default to prevent "shoulder surfing."
+  * **Content Validation**: The app scans selected Dictionary folders for valid StarDict files (`.idx`) before allowing the configuration to be saved.
 ## 🏗️ Architecture
 Vaachak is built using Modern Android Development (MAD) standards and Clean Architecture principles:
 * **UI Layer:** Jetpack Compose, Material 3, Coroutines/Flows.
