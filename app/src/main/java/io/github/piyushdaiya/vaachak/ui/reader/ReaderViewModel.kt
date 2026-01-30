@@ -1,6 +1,7 @@
 package io.github.piyushdaiya.vaachak.ui.reader
 
 import android.net.Uri
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -19,18 +20,29 @@ import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONObject
 import org.readium.r2.navigator.Decoration
 import org.readium.r2.shared.ExperimentalReadiumApi
+import io.github.piyushdaiya.vaachak.data.repository.SettingsRepository
+import io.github.piyushdaiya.vaachak.data.repository.DictionaryRepository
+import android.content.Context
+import android.util.Log
+
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class, ExperimentalReadiumApi::class)
 @HiltViewModel
 class ReaderViewModel @Inject constructor(
     private val aiRepository: AiRepository,
     private val readiumManager: ReadiumManager,
     private val highlightDao: HighlightDao,
+    private val settingsRepo: SettingsRepository,
+    private val dictionaryRepository: DictionaryRepository,
     private val bookDao: BookDao
 ) : ViewModel() {
     private var pendingJumpLocator: String?=null
     private var initialUri: String? = null
     private var currentSelectedText = ""
+    // The private mutable state that the ViewModel can write to
+    private val _snackbarMessage = MutableStateFlow<String?>(null)
 
+    // The public immutable state that the UI (ReaderScreen) collects
+    val snackbarMessage = _snackbarMessage.asStateFlow()
     private val _publication = MutableStateFlow<Publication?>(null)
     val publication: StateFlow<Publication?> = _publication
 
@@ -39,6 +51,13 @@ class ReaderViewModel @Inject constructor(
 
     private val _currentLocator = MutableStateFlow<Locator?>(null)
     val currentLocator: StateFlow<Locator?> = _currentLocator.asStateFlow()
+
+    // State for UI to show a loading indicator during dictionary lookup
+    private val _isDictionaryLoading = MutableStateFlow(false)
+    val isDictionaryLoading = _isDictionaryLoading.asStateFlow()
+
+    private val _isDictionaryLookup = MutableStateFlow(false)
+    val isDictionaryLookup = _isDictionaryLookup.asStateFlow()
 
     // AI and UI States... (Keep your existing AI code here)
     private val _isBottomSheetVisible = MutableStateFlow(false)
@@ -164,6 +183,7 @@ class ReaderViewModel @Inject constructor(
     }
 
     fun onTextSelected(text: String) {
+        _isDictionaryLookup.value = false
         currentSelectedText = text
         _aiResponse.value = ""
         _isBottomSheetVisible.value = true
@@ -183,26 +203,58 @@ class ReaderViewModel @Inject constructor(
 
     // AI Actions (Unchanged)
     fun onActionExplain() = viewModelScope.launch {
+        _isDictionaryLookup.value = false
+        _isDictionaryLoading.value = true // Start Spinner
         _isImageResponse.value = false
         _aiResponse.value = "Thinking..."
-        _aiResponse.value = aiRepository.explainContext(currentSelectedText)
+        try {
+            val result = aiRepository.explainContext(currentSelectedText)
+            _aiResponse.value = result
+        } catch (e: Exception) {
+            _aiResponse.value = "Error: ${e.message}"
+        } finally {
+            _isDictionaryLoading.value = false // STOP Spinner
+        }
     }
     fun onActionWhoIsThis() = viewModelScope.launch {
+        _isDictionaryLookup.value = false
+        _isDictionaryLoading.value = true
         _isImageResponse.value = false
         _aiResponse.value = "Investigating character..."
-        val bookTitle = _publication.value?.metadata?.title ?: "Unknown Book"
-        val bookAuthor = _publication.value?.metadata?.authors?.firstOrNull()?.name ?: "Unknown Author"
-        _aiResponse.value = aiRepository.whoIsThis(currentSelectedText, bookTitle, bookAuthor)
-    }
-    fun onActionVisualize() = viewModelScope.launch {
-        _aiResponse.value = "Generating image..."
-        val result = aiRepository.visualizeText(currentSelectedText)
-        if (result.startsWith("BASE64_IMAGE:")) {
-            _isImageResponse.value = true
-            _aiResponse.value = result.removePrefix("BASE64_IMAGE:")
-        } else {
-            _isImageResponse.value = false
+        try {
+            val bookTitle = _publication.value?.metadata?.title ?: "Unknown Book"
+            val bookAuthor = _publication.value?.metadata?.authors?.firstOrNull()?.name ?: "Unknown Author"
+            val result = aiRepository.whoIsThis(currentSelectedText, bookTitle, bookAuthor)
             _aiResponse.value = result
+        }
+        catch (e: Exception) {
+            _aiResponse.value = "Error: ${e.message}"
+        }finally {
+            _isDictionaryLoading.value = false // STOP Spinner
+        }
+           }
+    fun onActionVisualize() = viewModelScope.launch {
+        _isDictionaryLookup.value = false // RESET: Prevents "No definition found"
+        _isDictionaryLoading.value = true
+        _isImageResponse.value = true
+        _isBottomSheetVisible.value = true
+        _aiResponse.value = "" // Clear old text
+
+        try {
+            val result = aiRepository.visualizeText(currentSelectedText)
+            // Ensure result is a valid Base64 string without extra metadata
+            if (result.startsWith("BASE64_IMAGE:")) {
+                _aiResponse.value = result.removePrefix("BASE64_IMAGE:")
+            } else {
+                // If it returns text (fallback), disable image mode
+                _isImageResponse.value = false
+                _aiResponse.value = result
+            }
+        } catch (e: Exception) {
+            _isImageResponse.value = false
+            _aiResponse.value = "Error: ${e.localizedMessage}"
+        } finally {
+            _isDictionaryLoading.value = false
         }
     }
 //Recap functionality
@@ -212,34 +264,8 @@ private val _recapText = MutableStateFlow<String?>(null)
     private val _isRecapLoading = MutableStateFlow(false)
     val isRecapLoading: StateFlow<Boolean> = _isRecapLoading.asStateFlow()
 
-    fun generateRecap(currentPageText: String) {
-        val pub = publication.value ?: return
-        val title = pub.metadata.title ?: "this book"
 
-        viewModelScope.launch {
-            _isRecapLoading.value = true
-            try {
-                // 1. Fetch the last 10 highlights for context
-                val highlights = highlightDao.getHighlightsForBook(initialUri ?: "")
-                    .first() // Get current snapshot
-                    .take(10)
-                    .joinToString("\n") { "- ${it.text}" }
 
-                // 2. Call the AI Repository
-                val response = aiRepository.generateRecap(
-                    bookTitle = title,
-                    highlightsContext = highlights,
-                    currentPageText = currentPageText
-                )
-
-                _recapText.value = response
-            } catch (e: Exception) {
-                _recapText.value = "Failed to generate recap: ${e.localizedMessage}"
-            } finally {
-                _isRecapLoading.value = false
-            }
-        }
-    }
 
     fun dismissRecap() {
         _recapText.value = null
@@ -261,6 +287,76 @@ private val _recapText = MutableStateFlow<String?>(null)
             highlightDao.insertHighlight(recapHighlight)
             dismissRecap() // Close the dialog after saving
         }
+    }
+
+    //Dictionary
+
+    private fun launchExternalDictionary(word: String, context: Context) {
+        val intent = android.content.Intent("colordict.intent.action.SEARCH").apply {
+            putExtra("EXTRA_QUERY", word.trim())
+            putExtra("EXTRA_FULLSCREEN", false)
+            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        try {
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            Log.e("VaachakDictDebug", "Intent failed", e)
+            _snackbarMessage.value = "ColorDict app not found. Enable 'Embedded Dictionary' in settings."
+        }
+    }
+    fun lookupWord(word: String, context: Context) {
+        val trimmedWord = word.trim()
+
+        // GUARDRAIL: Limit to 5 words or 50 characters
+        val wordCount = trimmedWord.split(Regex("\\s+")).size
+        if (wordCount > 5 || trimmedWord.length > 50) {
+            _isBottomSheetVisible.value = true
+            _isDictionaryLookup.value = true // Keep as dictionary style for consistency
+            _isDictionaryLoading.value = false
+            _aiResponse.value = "Selection too long for dictionary. Please select a single word, or use 'Ask AI' for sentences."
+            return
+        }
+        viewModelScope.launch {
+            Log.d("VaachakDictDebug", "lookupWord started for: $word")
+
+            // 1. Fetch the setting from DataStore (Flow)
+            // We use .first() to get the current snapshot of the preference
+            val isEmbedded = settingsRepo.getUseEmbeddedDictionary().first()
+
+            Log.d("VaachakDictDebug", "Using embedded mode: $isEmbedded")
+            _isDictionaryLookup.value = isEmbedded
+
+            if (isEmbedded) {
+                // Open bottom sheet and show loading state
+                _isBottomSheetVisible.value = true
+                _aiResponse.value = "Searching device dictionaries..."
+                _isDictionaryLoading.value = true
+
+                try {
+                    // 2. Delegate to DictionaryRepository (Handles JSON -> StarDict fallback)
+                    val definition = dictionaryRepository.getDefinition(word)
+
+
+                    // 3. Update UI (Crucial: Update response BEFORE stopping loader)
+                    if (definition != null) {
+                        _aiResponse.value = definition
+                    } else {
+                        _aiResponse.value = "No definition found for '$word'."
+                    }
+                    Log.d("VaachakUI", "UI responseText updated to: $definition")
+                    _isDictionaryLoading.value = false
+                } catch (e: Exception) {
+                    Log.e("VaachakDictDebug", "Local lookup failed", e)
+                    _aiResponse.value = "Error searching local dictionaries."
+                } finally {
+                    _isDictionaryLoading.value = false
+                }
+            } else {
+                // 3. Option B: External Intent (Legacy/ColorDict mode)
+                launchExternalDictionary(word, context)
+            }
+        }
+
     }
 
 }

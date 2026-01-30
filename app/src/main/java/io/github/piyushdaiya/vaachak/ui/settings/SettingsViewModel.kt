@@ -95,4 +95,25 @@ class SettingsViewModel @Inject constructor(
             settingsRepo.setContrast(newContrast)
         }
     }
+
+    fun toggleEmbeddedDictionary(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepo.setUseEmbeddedDictionary(enabled)
+        }
+    }
+    val useEmbeddedDictionary: StateFlow<Boolean> = settingsRepo.getUseEmbeddedDictionary()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    val dictionaryFolder: StateFlow<String> = settingsRepo.getDictionaryFolder() .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
+
+    fun setUseEmbeddedDictionary(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepo.setUseEmbeddedDictionary(enabled)
+        }
+    }
+    fun updateDictionaryFolder(uri: String) {
+        viewModelScope.launch {
+            settingsRepo.setDictionaryFolder(uri)
+        }
+    }
 }

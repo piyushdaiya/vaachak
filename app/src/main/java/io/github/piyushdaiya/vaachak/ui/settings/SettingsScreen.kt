@@ -19,6 +19,12 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import io.github.piyushdaiya.vaachak.ui.theme.ThemeMode
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.ui.graphics.lerp
+import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
@@ -35,6 +41,24 @@ fun SettingsScreen(
     val currentTheme by viewModel.themeMode.collectAsState()
     val isEinkEnabled by viewModel.isEinkEnabled.collectAsState()
     val contrast by viewModel.einkContrast.collectAsState()
+
+    val context = LocalContext.current
+    val useEmbeddedDictionary by viewModel.useEmbeddedDictionary.collectAsState()
+    val dictionaryFolder by viewModel.dictionaryFolder.collectAsState()
+
+    // NEW: The Folder Picker Launcher
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        uri?.let {
+            // Fix for "Unresolved reference" on Intent flags
+            context.contentResolver.takePersistableUriPermission(
+                it,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+            viewModel.updateDictionaryFolder(it.toString())
+        }
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -161,6 +185,48 @@ fun SettingsScreen(
                             .weight(1f)
                             .fillMaxHeight()
                             .background(sharpenedColor)
+                    )
+                }
+            }
+        }
+
+        // --- DISPLAY SETTINGS --- (Keep existing until the end of E-ink sections)
+
+        Spacer(modifier = Modifier.height(24.dp))
+        HorizontalDivider(thickness = 0.5.dp)
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // --- NEW: READING FEATURES SECTION ---
+        Text("Reading Features", style = MaterialTheme.typography.titleMedium)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        ListItem(
+            headlineContent = { Text("Embedded Dictionary") },
+            supportingContent = {
+                Text("Show definitions inside Vaachak using local data.")
+            },
+            trailingContent = {
+                Switch(
+                    checked = useEmbeddedDictionary,
+                    onCheckedChange = { viewModel.toggleEmbeddedDictionary(it) }
+                )
+            }
+        )
+        // NEW: Folder Selection UI
+        if (useEmbeddedDictionary) {
+            Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                OutlinedButton(
+                    onClick = { launcher.launch(null) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (dictionaryFolder.isEmpty()) "Select StarDict Folder" else "Change StarDict Folder")
+                }
+                if (dictionaryFolder.isNotEmpty()) {
+                    Text(
+                        text = "Folder Linked Successfully",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.Gray,
+                        modifier = Modifier.padding(top = 4.dp)
                     )
                 }
             }

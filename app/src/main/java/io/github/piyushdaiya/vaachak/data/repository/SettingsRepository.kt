@@ -82,6 +82,31 @@ class SettingsRepository @Inject constructor(private val dataStore: DataStore<Pr
     suspend fun setContrast(value: Float) {
         dataStore.edit { it[CONTRAST_KEY] = value }
     }
+    private object PreferencesKeys {
+        val DICTIONARY_FOLDER_KEY = stringPreferencesKey("dictionary_folder")
+        val USE_EMBEDDED_DICT = booleanPreferencesKey("use_embedded_dict")
+    }
 
+    // Add the getter/setter methods
+    fun getDictionaryFolder(): Flow<String> = dataStore.data.map { it[PreferencesKeys.DICTIONARY_FOLDER_KEY] ?: "" }
+
+    // 1. Get the preference as a Flow
+    fun getUseEmbeddedDictionary(): Flow<Boolean> = dataStore.data
+        .map { preferences -> preferences[PreferencesKeys.USE_EMBEDDED_DICT] ?: true }
+
+    // 2. Set the preference
+    suspend fun setUseEmbeddedDictionary(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.USE_EMBEDDED_DICT] = enabled
+        }
+
+    }
+
+
+    suspend fun setDictionaryFolder(uri: String) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.DICTIONARY_FOLDER_KEY] = uri
+        }
+    }
 }
 

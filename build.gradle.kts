@@ -6,4 +6,7 @@ plugins {
     alias(libs.plugins.dagger.hilt.android) apply false
     alias(libs.plugins.devtools.ksp) apply false
     alias(libs.plugins.jetbrains.dokka) apply false
+
+    // Use the version matching your Gradle environment
+    kotlin("plugin.serialization") version "2.0.21" apply false
 }

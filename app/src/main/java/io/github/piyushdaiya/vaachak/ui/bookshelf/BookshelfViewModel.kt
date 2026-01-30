@@ -35,7 +35,11 @@ class BookshelfViewModel @Inject constructor(
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
-    val snackbarMessage: MutableState<String?> = mutableStateOf<String?>(null)
+    // The private mutable state that the ViewModel can write to
+    private val _snackbarMessage = MutableStateFlow<String?>(null)
+
+    // The public immutable state that the UI (ReaderScreen) collects
+    val snackbarMessage = _snackbarMessage.asStateFlow()
 
     // 1. Full stream of books sorted by recent
     val allBooks: StateFlow<List<BookEntity>> = bookDao.getAllBooksSortedByRecent()
@@ -84,7 +88,7 @@ class BookshelfViewModel @Inject constructor(
     fun importBook(uri: Uri) {
         viewModelScope.launch {
             if (allBooks.value.any { it.uriString == uri.toString() }) {
-                snackbarMessage.value = "Book is already in your bookshelf"
+                _snackbarMessage.value = "Book is already in your bookshelf"
                 return@launch
             }
 
@@ -118,7 +122,7 @@ class BookshelfViewModel @Inject constructor(
                 bookDao.insertBook(newBook)
                 readiumManager.closePublication()
             } else {
-                snackbarMessage.value = "Failed to open book metadata"
+                _snackbarMessage.value = "Failed to open book metadata"
             }
         }
     }
@@ -154,10 +158,9 @@ class BookshelfViewModel @Inject constructor(
                     .take(10)
                     .joinToString("\n") { it.text }
 
-                val summary = aiRepository.generateRecap(
+                val summary = aiRepository.getRecallSummary(
                     bookTitle = book.title,
-                    highlightsContext = contextHighlights,
-                    currentPageText = "The user is about to resume reading."
+                    context = contextHighlights
                 )
 
                 // Map the summary to the book URI

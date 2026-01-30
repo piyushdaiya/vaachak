@@ -7,11 +7,7 @@ import android.view.View
 import android.widget.FrameLayout
 import androidx.activity.compose.BackHandler
 import androidx.appcompat.app.AppCompatActivity
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -39,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.text.font.FontWeight
+import android.util.Log
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalReadiumApi::class)
 @Composable
 fun ReaderScreen(
@@ -58,7 +55,9 @@ fun ReaderScreen(
     val isBottomSheetVisible by viewModel.isBottomSheetVisible.collectAsState()
     val aiResponse by viewModel.aiResponse.collectAsState()
     val isImageResponse by viewModel.isImageResponse.collectAsState()
-
+    // NEW: Collect Dictionary State from ViewModel
+    val isDictionaryLookup by viewModel.isDictionaryLookup.collectAsState()
+    val isDictionaryLoading by viewModel.isDictionaryLoading.collectAsState() // Move this up here
     // NEW: Tag selection state
     val showTagSelector by viewModel.showTagSelector.collectAsState()
 
@@ -153,6 +152,7 @@ fun ReaderScreen(
             override fun onCreateActionMode(mode: ActionMode?, menu: Menu?): Boolean {
                 menu?.add(Menu.NONE, 101, 0, "Ask AI")
                 menu?.add(Menu.NONE, 102, 1, "Highlight")
+                menu?.add(Menu.NONE, 103, 2, "Define")
                 return true
             }
             override fun onPrepareActionMode(mode: ActionMode?, menu: Menu?) = false
@@ -160,10 +160,16 @@ fun ReaderScreen(
                 scope.launch {
                     val selection = currentNavigatorFragment?.currentSelection()
                     val locator = selection?.locator ?: return@launch
+                    val text = locator.text.highlight ?: ""
+
                     when (item?.itemId) {
-                        101 -> viewModel.onTextSelected(locator.text.highlight ?: "")
-                        // Intercept Highlight to show Tag Selector
+                        101 -> viewModel.onTextSelected(text)
                         102 -> viewModel.prepareHighlight(locator)
+                        // v1.8: Dispatch to the new lookup logic
+                        103 -> {
+                            Log.d("VaachakDebug", "Define clicked for: $text")
+                            viewModel.lookupWord(text, activity)
+                        }
                     }
                     mode?.finish()
                 }
@@ -241,6 +247,8 @@ fun ReaderScreen(
                 AiBottomSheet(
                     responseText = aiResponse,
                     isImage = isImageResponse,
+                    isDictionary = isDictionaryLookup,
+                    isDictionaryLoading = isDictionaryLoading,
                     onExplain = { viewModel.onActionExplain() },
                     onWhoIsThis = { viewModel.onActionWhoIsThis() },
                     onVisualize = { viewModel.onActionVisualize() },

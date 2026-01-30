@@ -26,7 +26,9 @@ It seamlessly bridges traditional reading with advanced multimodal AI. By levera
   * Highlight Categorization: Add the ability to tag highlights (e.g., "Research," "Quotes," "Characters") and filter the Highlights by these tags.
 * **Dual-Section Bookshelf**: A dedicated "Continue Reading" horizontal carousel for active books and a compact, searchable grid for the main library.
 * **Local Privacy**: Your library and highlights stay on your device.
-
+* **Unified Dictionary & AI**: Tapping a word now opens a combined bottom sheet with both local definitions and AI action buttons.
+* **Hybrid Dictionary support**: Embedded lightweight directory support along with BYOD (Bring your own Directory) support.
+* **Style**: Standardized Visualize prompts for high-contrast E-ink minimalist line art.
 ## 🏗️ Architecture
 Vaachak is built using Modern Android Development (MAD) standards and Clean Architecture principles:
 * **UI Layer:** Jetpack Compose, Material 3, Coroutines/Flows.
@@ -37,6 +39,7 @@ Vaachak is built using Modern Android Development (MAD) standards and Clean Arch
 * **Image Loading**: [Coil](https://coil-kt.github.io/coil/)
 * **Async**: Kotlin Coroutines & Flow
 * **Networking/AI Layer:** Retrofit 2 + OkHttp for dynamic routing between Google Generative AI (Gemini) and Cloudflare Workers.
+
 
 📂 Project Structure
 * **ui/bookshelf:** Dashboard, book grid, and progress indicators.

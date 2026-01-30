@@ -1,10 +1,11 @@
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.android) // This provides 'kotlinOptions'
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.dagger.hilt.android)
-    alias(libs.plugins.devtools.ksp)
+    alias(libs.plugins.devtools.ksp)   // This provides 'ksp'
     id("kotlin-parcelize")
+    kotlin("plugin.serialization")
 }
 
 android {
@@ -50,8 +51,10 @@ android {
             output.outputFileName = "Vaachak-$variantName.apk"
         }
     }
-    kotlinOptions {
-        jvmTarget = "17"
+    kotlin {
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        }
     }
 }
 
@@ -109,4 +112,9 @@ implementation(libs.androidx.foundation)
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.activity:activity-ktx:1.9.0")
     implementation("androidx.compose.material:material-icons-extended")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+    implementation("androidx.documentfile:documentfile:1.0.1")
+    implementation("androidx.activity:activity-compose:1.9.0")
+    implementation("org.apache.commons:commons-compress:1.26.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.1")
 }

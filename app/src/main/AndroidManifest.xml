@@ -3,6 +3,7 @@
           xmlns:tools="http://schemas.android.com/tools"
 >
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
     <application
             android:name=".VaachakApplication"
             android:allowBackup="true"
@@ -20,6 +21,17 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-    </application>
 
+    </application>
+    <queries>
+        <package android:name="com.socialnmobile.colordict" />
+        <package android:name="org.goldendict.android" />
+
+        <provider android:authorities="com.socialnmobile.colordict.share.DictProvider" />
+        <provider android:authorities="org.goldendict.android.provider" />
+
+        <intent>
+            <action android:name="android.intent.action.SEARCH" />
+        </intent>
+    </queries>
 </manifest>

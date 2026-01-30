@@ -48,10 +48,9 @@ class SessionHistoryViewModel @Inject constructor(
                             .take(10)
                             .joinToString("\n") { it.text }
 
-                        val summary = aiRepository.generateRecap(
+                        val summary = aiRepository.getRecallSummary(
                             bookTitle = book.title,
-                            highlightsContext = highlights,
-                            currentPageText = "The reader is viewing their global session history."
+                            context = highlights
                         )
 
                         // Check setting before auto-saving

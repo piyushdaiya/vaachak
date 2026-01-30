@@ -6,11 +6,33 @@ import io.github.piyushdaiya.vaachak.data.api.CloudflareAiApi
 import io.github.piyushdaiya.vaachak.data.model.AiImageRequest
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
+import android.util.Log
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import org.json.JSONObject
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
 
 class AiRepository @Inject constructor(
-    private val cloudflareApi: CloudflareAiApi,
-    private val settingsRepo: SettingsRepository // Injected Settings
+        private val settingsRepo: SettingsRepository // Injected Settings
 ) {
+    val cloudflareClient = OkHttpClient.Builder()
+        .callTimeout(30, java.util.concurrent.TimeUnit.SECONDS) // The -m 30 flag
+        .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS) // Time to establish connection
+        .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)    // Time to wait for image data
+        .build()
+
+    val retrofit = Retrofit.Builder()
+        .baseUrl("https://api.cloudflare.com/") // Placeholder, overridden by @Url
+        .client(cloudflareClient) // ATTACH THE 30s TIMEOUT HERE
+        .addConverterFactory(GsonConverterFactory.create())
+        .build()
+
+    val cloudflareApi = retrofit.create(CloudflareAiApi::class.java)
     // Helper to get the Gemini model with the latest key
     private suspend fun getGeminiModel(): GenerativeModel {
         val key = settingsRepo.geminiKey.first()
@@ -32,67 +54,37 @@ class AiRepository @Inject constructor(
         } catch (e: Exception) { "Error: ${e.localizedMessage}" }
     }
 
-    suspend fun visualizeText(selectedText: String): String {
-        return try {
-            val cfUrl = settingsRepo.cloudflareUrl.first()
-            val cfToken = settingsRepo.cloudflareToken.first()
+    suspend fun visualizeText(prompt: String): String = withContext(Dispatchers.IO) {
+        try {
+            val url = settingsRepo.cloudflareUrl.first().trim()
+            val token = settingsRepo.cloudflareToken.first().trim()
 
-            if (cfUrl.isBlank()) throw Exception("Cloudflare URL missing in Settings.")
+            val response = cloudflareApi.generateImage(
+                fullUrl = url,
+                request = AiImageRequest(prompt),
+                token = "Bearer $token"
+            )
 
-            val prompt = "Simple minimalist line art of $selectedText, black ink on white background, high contrast, no shading, clean lines."
-
-            // Pass the dynamic URL and token
-            val response = cloudflareApi.generateImage(cfUrl, AiImageRequest(prompt), "Bearer $cfToken")
-
-            if (response.isSuccessful && response.body() != null) {
-                val imageBytes = response.body()!!.bytes()
-                if (imageBytes.isEmpty() || imageBytes[0].toInt().toChar() == '{') {
-                    throw Exception("Cloudflare returned JSON error.")
-                }
-                "BASE64_IMAGE:" + Base64.encodeToString(imageBytes, Base64.NO_WRAP)
+            if (response.isSuccessful) {
+                val bytes = response.body()?.bytes()
+                if (bytes != null) {
+                    "BASE64_IMAGE:${android.util.Base64.encodeToString(bytes, android.util.Base64.DEFAULT)}"
+                } else "Empty Body"
             } else {
-                throw Exception("HTTP ${response.code()}")
+                "Cloudflare Error: ${response.code()}"
             }
+        } catch (e: java.net.SocketTimeoutException) {
+            // This is triggered by the 30s limit
+            "Timeout: Cloudflare took more than 30 seconds to generate the image."
         } catch (e: Exception) {
-            val cfError = e.message ?: "Network timeout"
-            try {
-                val fallbackText = getGeminiModel().generateContent("You are an artist. Describe '$selectedText' in vivid sensory detail. Under 50 words.").text
-                "⚠️ Visualization Failed. Fallback Description:\n$fallbackText"
-            } catch (geminiEx: Exception) {
-                "Total Failure. Please check API Keys in Settings."
-            }
-        }
-    }
-    // --- NEW RECAP FUNCTIONALITY ---
-    suspend fun generateRecap(
-        bookTitle: String,
-        highlightsContext: String,
-        currentPageText: String
-    ): String {
-        return try {
-            val prompt = """
-                I am returning to read '$bookTitle'. 
-                
-                Based on my previous highlights:
-                "$highlightsContext"
-                
-                And the current page text:
-                "$currentPageText"
-                
-                Provide a quick 3-sentence recap of the plot leading up to this point and a brief 'Who's Who' of characters present in this specific scene.
-                STRICTLY avoid future plot spoilers.
-            """.trimIndent()
-
-            getGeminiModel().generateContent(prompt).text ?: "Unable to generate recap."
-        } catch (e: Exception) {
-            "Error generating recap: ${e.localizedMessage}"
+            "Total Failure: ${e.localizedMessage}"
         }
     }
     suspend fun getRecallSummary(bookTitle: String, context: String): String {
         val prompt = """
         Context: $context
-        Task: Provide a 2-sentence 'Where I left off' summary for '$bookTitle'. 
-        Focus on the current plot tension and key characters present. 
+        Task: Provide a 3-sentence 'Where I left off' summary for '$bookTitle'. 
+        Focus on the current plot tension and key characters present and a brief 'Who's Who' of characters present
         STRICTLY avoid future spoilers.
     """.trimIndent()
         return getGeminiModel().generateContent(prompt).text ?: "Summary unavailable."
