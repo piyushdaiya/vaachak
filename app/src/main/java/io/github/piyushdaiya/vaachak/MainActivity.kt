@@ -4,39 +4,34 @@ import android.os.Bundle
 import android.view.KeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.foundation.IndicationNodeFactory
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material3.*
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.node.DelegatableNode
 import androidx.compose.ui.zIndex
 import dagger.hilt.android.AndroidEntryPoint
 import io.github.piyushdaiya.vaachak.ui.bookshelf.BookshelfScreen
 import io.github.piyushdaiya.vaachak.ui.highlights.AllHighlightsScreen
 import io.github.piyushdaiya.vaachak.ui.reader.ReaderScreen
-import io.github.piyushdaiya.vaachak.ui.reader.components.VaachakHeader
+import io.github.piyushdaiya.vaachak.ui.reader.components.VaachakNavigationFooter
 import io.github.piyushdaiya.vaachak.ui.settings.AboutScreen
 import io.github.piyushdaiya.vaachak.ui.settings.SettingsScreen
 import io.github.piyushdaiya.vaachak.ui.settings.SettingsViewModel
+import io.github.piyushdaiya.vaachak.ui.theme.ThemeMode
 import io.github.piyushdaiya.vaachak.ui.theme.VaachakTheme
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
-import androidx.activity.viewModels
-import androidx.compose.foundation.LocalIndication
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.foundation.IndicationNodeFactory
-import androidx.compose.foundation.interaction.InteractionSource
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.node.DelegatableNode
-import androidx.compose.material.icons.automirrored.filled.List
-import io.github.piyushdaiya.vaachak.ui.theme.ThemeMode
-import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
     private val settingsViewModel: SettingsViewModel by viewModels()
@@ -46,30 +41,26 @@ class MainActivity : AppCompatActivity() {
         val intentUriString = intent?.data?.toString()
 
         setContent {
-            // 1. Observe the persistent theme mode from DataStore
             val currentTheme by settingsViewModel.themeMode.collectAsState()
-
-            // 2. Logic to determine if we should disable ripple indications (for E-ink)
-            val isEinkActive = currentTheme == ThemeMode.E_INK
             val einkContrastValue by settingsViewModel.einkContrast.collectAsState()
+            val isEinkActive = currentTheme == ThemeMode.E_INK
+
             CompositionLocalProvider(
                 LocalIndication provides if (isEinkActive) NoIndication else LocalIndication.current
-            ){
+            ) {
                 VaachakTheme(
                     themeMode = currentTheme,
                     contrast = einkContrastValue
                 ) {
                     var currentBookUri by remember { mutableStateOf(intentUriString) }
                     var selectedTab by remember { mutableIntStateOf(0) }
-                    var showSettingsOnHome by remember { mutableStateOf(false) }
 
-                    // NEW: State for Session Recall overlay
+                    var showSettingsOnHome by remember { mutableStateOf(false) }
                     var showSessionHistory by remember { mutableStateOf(false) }
 
                     var targetLocator by remember { mutableStateOf<String?>(null) }
                     var targetHighlightLocator by remember { mutableStateOf<String?>(null) }
 
-                    // Back button handling for overlays
                     if (showSettingsOnHome || showSessionHistory) {
                         BackHandler {
                             showSettingsOnHome = false
@@ -78,6 +69,7 @@ class MainActivity : AppCompatActivity() {
                     }
 
                     Box(modifier = Modifier.fillMaxSize()) {
+
                         if (currentBookUri != null) {
                             ReaderScreen(
                                 initialUri = currentBookUri,
@@ -90,43 +82,28 @@ class MainActivity : AppCompatActivity() {
                             )
                         } else {
                             Scaffold(
-                                topBar = {
-                                    VaachakHeader(
-                                        title = "Vaachak",
-                                        showBackButton = false,
-                                        onBack = { /* No-op */ },
-                                        onSettingsClick = { showSettingsOnHome = true }
+                                bottomBar = {
+                                    VaachakNavigationFooter(
+                                        onBookshelfClick = { selectedTab = 0 },
+                                        onHighlightsClick = { selectedTab = 1 },
+                                        onAboutClick = { selectedTab = 2 },
+                                        isEink = isEinkActive
                                     )
                                 },
-                                bottomBar = {
-                                    NavigationBar(containerColor = Color.White) {
-                                        NavigationBarItem(
-                                            icon = { Icon(Icons.Default.Home, "Bookshelf") },
-                                            label = { Text("Bookshelf") },
-                                            selected = selectedTab == 0,
-                                            onClick = { selectedTab = 0 }
-                                        )
-                                        NavigationBarItem(
-                                            icon = { Icon(Icons.AutoMirrored.Filled.List, "Highlights") },
-                                            label = { Text("Highlights") },
-                                            selected = selectedTab == 1,
-                                            onClick = { selectedTab = 1 }
-                                        )
-                                        NavigationBarItem(
-                                            icon = { Icon(Icons.Default.Info, "About") },
-                                            label = { Text("About") },
-                                            selected = selectedTab == 2,
-                                            onClick = { selectedTab = 2 }
-                                        )
-                                    }
-                                }
+                                containerColor = if (isEinkActive) Color.White else MaterialTheme.colorScheme.background
                             ) { padding ->
-                                Surface(modifier = Modifier.padding(padding).fillMaxSize(),
-                                    color = MaterialTheme.colorScheme.background) {
+                                Surface(
+                                    modifier = Modifier
+                                        .padding(padding)
+                                        .fillMaxSize(),
+                                    color = if (isEinkActive) Color.White else MaterialTheme.colorScheme.background
+                                ) {
                                     when (selectedTab) {
                                         0 -> BookshelfScreen(
                                             onBookClick = { uri -> currentBookUri = uri },
-                                            onRecallClick = { showSessionHistory = true } // NEW TRIGGER
+                                            // FIX: Correct wiring for Recall and Settings
+                                            onRecallClick = { showSessionHistory = true },
+                                            onSettingsClick = { showSettingsOnHome = true }
                                         )
                                         1 -> AllHighlightsScreen(
                                             onBack = { selectedTab = 0 },
@@ -135,13 +112,14 @@ class MainActivity : AppCompatActivity() {
                                                 currentBookUri = uri
                                             }
                                         )
-                                        2 -> AboutScreen(onBack = { selectedTab = 0 })
+                                        2 -> AboutScreen(
+                                            onBack = { selectedTab = 0 }
+                                        )
                                     }
                                 }
                             }
                         }
 
-                        // --- NEW: SESSION HISTORY OVERLAY ---
                         if (showSessionHistory) {
                             Surface(
                                 modifier = Modifier.fillMaxSize().zIndex(6f),
@@ -151,13 +129,12 @@ class MainActivity : AppCompatActivity() {
                                     onBack = { showSessionHistory = false },
                                     onLaunchBook = { uri ->
                                         showSessionHistory = false
-                                        currentBookUri = uri // This triggers Reader mode
+                                        currentBookUri = uri
                                     }
                                 )
                             }
                         }
 
-                        // Settings Overlay
                         if (showSettingsOnHome) {
                             Surface(
                                 modifier = Modifier.fillMaxSize().zIndex(5f),
@@ -171,6 +148,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
+
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         val isPageForward = keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || keyCode == KeyEvent.KEYCODE_PAGE_DOWN
         val isPageBackward = keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_PAGE_UP
@@ -187,12 +165,12 @@ class MainActivity : AppCompatActivity() {
         }
         return super.onKeyDown(keyCode, event)
     }
+
     private object NoIndication : IndicationNodeFactory {
         override fun create(interactionSource: InteractionSource): DelegatableNode {
             return object : Modifier.Node(), DelegatableNode {}
         }
-
         override fun hashCode(): Int = -1
         override fun equals(other: Any?): Boolean = other === this
     }
-  }
+}

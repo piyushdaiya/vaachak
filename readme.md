@@ -34,6 +34,7 @@ It seamlessly bridges traditional reading with advanced multimodal AI. By levera
   * **Input Sanitization**: Implemented strict filters on API keys and URLs to prevent Prompt Injection and Second-Order Injection attacks.
   * **Visual Masking**: Gemini keys and Cloudflare tokens are now masked by default to prevent "shoulder surfing."
   * **Content Validation**: The app scans selected Dictionary folders for valid StarDict files (`.idx`) before allowing the configuration to be saved.
+  * **Strict Keyboards:** Enforced `ImeAction.Search` and text-only keyboards for library search.
 ## 🏗️ Architecture
 Vaachak is built using Modern Android Development (MAD) standards and Clean Architecture principles:
 * **UI Layer:** Jetpack Compose, Material 3, Coroutines/Flows.

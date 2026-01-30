@@ -2,13 +2,20 @@ package io.github.piyushdaiya.vaachak.ui.reader.components
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.util.Base64
 import android.text.method.LinkMovementMethod
+import android.util.Base64
 import android.widget.TextView
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape // <--- FIXED: Added missing import
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Brush
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.PersonSearch
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -16,6 +23,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.text.HtmlCompat
@@ -27,79 +36,117 @@ fun AiBottomSheet(
     isImage: Boolean,
     isDictionary: Boolean = false,
     isDictionaryLoading: Boolean = false,
+    isEink: Boolean = false,
     onExplain: () -> Unit,
     onWhoIsThis: () -> Unit,
     onVisualize: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    // Dynamic Theme Colors
+    val containerColor = if (isEink) Color.White else MaterialTheme.colorScheme.surfaceContainer
+    val contentColor = if (isEink) Color.Black else MaterialTheme.colorScheme.onSurface
+    val dividerColor = if (isEink) Color.Black else MaterialTheme.colorScheme.outlineVariant
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = Color.White,
-        contentColor = Color.Black
+        containerColor = containerColor,
+        contentColor = contentColor,
+        // E-ink: Sharp rectangular look (optional)
+        shape = if (isEink) MaterialTheme.shapes.extraSmall else BottomSheetDefaults.ExpandedShape
     ) {
         Column(
             modifier = Modifier
-                .padding(16.dp)
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 32.dp)
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // ONLY show buttons if it's NOT a dictionary lookup
+
+            // --- 1. ACTION BUTTONS (Only if not Dictionary) ---
             if (!isDictionary) {
-                // Action Buttons
                 Row(
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    OutlinedButton(onClick = onExplain) { Text("Explain", color = Color.Black) }
-                    OutlinedButton(onClick = onWhoIsThis) { Text("Who is this?", color = Color.Black) }
-                    OutlinedButton(onClick = onVisualize) { Text("Visualize", color = Color.Black) }
+                    AiActionButton(
+                        text = "Explain",
+                        icon = Icons.Default.AutoAwesome,
+                        onClick = onExplain,
+                        isEink = isEink,
+                        modifier = Modifier.weight(1f)
+                    )
+                    AiActionButton(
+                        text = "Who?",
+                        icon = Icons.Default.PersonSearch,
+                        onClick = onWhoIsThis,
+                        isEink = isEink,
+                        modifier = Modifier.weight(1f)
+                    )
+                    AiActionButton(
+                        text = "Visualize",
+                        icon = Icons.Default.Brush,
+                        onClick = onVisualize,
+                        isEink = isEink,
+                        modifier = Modifier.weight(1f)
+                    )
                 }
 
-                HorizontalDivider(color = Color.LightGray)
+                HorizontalDivider(color = dividerColor, thickness = if(isEink) 1.dp else 0.5.dp)
             }
-            Spacer(modifier = Modifier.height(16.dp))
 
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // --- 2. CONTENT AREA ---
             when {
                 isDictionaryLoading -> {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.padding(vertical = 32.dp).fillMaxWidth()
+                        modifier = Modifier.padding(vertical = 16.dp).fillMaxWidth()
                     ) {
-                        CircularProgressIndicator(color = Color.Black)
-                        Spacer(modifier = Modifier.height(12.dp))
+                        CircularProgressIndicator(
+                            color = if(isEink) Color.Black else MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(32.dp)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
                         Text(
-                            text = if (isDictionary) "Searching dictionaries..." else "AI is thinking...",
+                            text = if (isDictionary) "Consulting Dictionary..." else "AI is thinking...",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = Color.Gray
+                            color = if(isEink) Color.DarkGray else MaterialTheme.colorScheme.secondary
                         )
                     }
                 }
 
                 !responseText.isNullOrBlank() -> {
                     if (isImage) {
-                        // LOGIC STEP: Decode outside of the UI emitting functions
                         val bitmap: Bitmap? = remember(responseText) {
                             try {
                                 val imageBytes = Base64.decode(responseText, Base64.DEFAULT)
                                 BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
-                            } catch (e: Exception) {
-                                null
-                            }
+                            } catch (e: Exception) { null }
                         }
 
                         if (bitmap != null) {
-                            Image(
-                                bitmap = bitmap.asImageBitmap(),
-                                contentDescription = "AI Visualization",
-                                modifier = Modifier.fillMaxWidth().wrapContentHeight()
-                            )
+                            Card(
+                                border = if(isEink) BorderStroke(1.dp, Color.Black) else null,
+                                colors = CardDefaults.cardColors(containerColor = Color.Transparent)
+                            ) {
+                                Image(
+                                    bitmap = bitmap.asImageBitmap(),
+                                    contentDescription = "AI Visualization",
+                                    modifier = Modifier.fillMaxWidth().wrapContentHeight()
+                                )
+                            }
                         } else {
-                            // If bitmap is null, it means decoding failed (responseText is likely an error message)
-                            Text(text = responseText, color = Color.Black, style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                text = "⚠️ Failed to decode image.",
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
                         }
                     } else if (isDictionary) {
+                        // Dictionary HTML Rendering
                         AndroidView(
                             modifier = Modifier.fillMaxWidth(),
                             factory = { context ->
@@ -115,27 +162,77 @@ fun AiBottomSheet(
                                     responseText,
                                     HtmlCompat.FROM_HTML_MODE_COMPACT
                                 )
+                                val textColor = if(isEink) android.graphics.Color.BLACK else android.graphics.Color.DKGRAY
+                                textView.setTextColor(textColor)
                             }
                         )
                     } else {
+                        // Standard AI Text Response
                         Text(
                             text = responseText,
-                            color = Color.Black,
-                            style = MaterialTheme.typography.bodyLarge,
+                            color = contentColor,
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                lineHeight = MaterialTheme.typography.bodyLarge.lineHeight * 1.2
+                            ),
                             modifier = Modifier.fillMaxWidth().align(Alignment.Start)
                         )
                     }
                 }
 
                 else -> {
+                    // Empty State
                     Text(
-                        text = if (isDictionary) "No definition found." else "Select an action above.",
-                        color = Color.Gray,
+                        text = if (isDictionary) "No definition found." else "Select an AI action above.",
+                        color = if(isEink) Color.Gray else MaterialTheme.colorScheme.outline,
+                        style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(vertical = 24.dp)
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+    }
+}
+
+// --- HELPER: Consistent Buttons ---
+@Composable
+fun AiActionButton(
+    text: String,
+    icon: ImageVector,
+    onClick: () -> Unit,
+    isEink: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val contentColor = if (isEink) Color.Black else MaterialTheme.colorScheme.primary
+    val borderColor = if (isEink) Color.Black else MaterialTheme.colorScheme.outline
+
+    OutlinedButton(
+        onClick = onClick,
+        modifier = modifier,
+        shape = RoundedCornerShape(8.dp),
+        border = BorderStroke(1.dp, borderColor),
+        colors = ButtonDefaults.outlinedButtonColors(
+            contentColor = contentColor,
+            containerColor = Color.Transparent
+        ),
+        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp) // Compact
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(vertical = 8.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = if (isEink) FontWeight.Bold else FontWeight.Medium,
+                maxLines = 1
+            )
         }
     }
 }

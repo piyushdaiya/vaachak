@@ -8,6 +8,8 @@ import android.widget.FrameLayout
 import androidx.activity.compose.BackHandler
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,7 +22,7 @@ import androidx.core.net.toUri
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import androidx.hilt.navigation.compose.hiltViewModel
-import io.github.piyushdaiya.vaachak.ui.reader.components.VaachakFooter
+import io.github.piyushdaiya.vaachak.ui.reader.components.ReaderFooter
 import io.github.piyushdaiya.vaachak.ui.reader.components.VaachakHeader
 import io.github.piyushdaiya.vaachak.ui.settings.SettingsScreen
 import io.github.piyushdaiya.vaachak.ui.reader.components.AiBottomSheet
@@ -36,6 +38,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.text.font.FontWeight
 import android.util.Log
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalReadiumApi::class)
 @Composable
 fun ReaderScreen(
@@ -46,7 +49,7 @@ fun ReaderScreen(
 ) {
     val activity = LocalContext.current as AppCompatActivity
     val publication by viewModel.publication.collectAsState()
-    val currentLocator by viewModel.currentLocator.collectAsState()
+    val isEink by viewModel.isEinkEnabled.collectAsState()
 
     var showSettings by remember { mutableStateOf(false) }
     var showDeleteDialogId by remember { mutableStateOf<Long?>(null) }
@@ -55,10 +58,8 @@ fun ReaderScreen(
     val isBottomSheetVisible by viewModel.isBottomSheetVisible.collectAsState()
     val aiResponse by viewModel.aiResponse.collectAsState()
     val isImageResponse by viewModel.isImageResponse.collectAsState()
-    // NEW: Collect Dictionary State from ViewModel
     val isDictionaryLookup by viewModel.isDictionaryLookup.collectAsState()
-    val isDictionaryLoading by viewModel.isDictionaryLoading.collectAsState() // Move this up here
-    // NEW: Tag selection state
+    val isDictionaryLoading by viewModel.isDictionaryLoading.collectAsState()
     val showTagSelector by viewModel.showTagSelector.collectAsState()
 
     val pageInfo by viewModel.currentPageInfo.collectAsState()
@@ -67,14 +68,12 @@ fun ReaderScreen(
     val initialLocator by viewModel.initialLocator.collectAsState()
     val savedHighlights by viewModel.currentBookHighlights.collectAsState()
 
-    //recap
     val recapText by viewModel.recapText.collectAsState()
     val isRecapLoading by viewModel.isRecapLoading.collectAsState()
 
     LaunchedEffect(savedHighlights, isNavigatorReady) {
         val navigator = currentNavigatorFragment ?: return@LaunchedEffect
         if (isNavigatorReady) {
-            // This tells Readium to paint the yellow backgrounds
             navigator.applyDecorations(savedHighlights, "user_highlights")
         }
     }
@@ -146,7 +145,6 @@ fun ReaderScreen(
         }
     }
 
-    // --- UPDATED ACTION MODE CALLBACK ---
     val aiSelectionCallback = remember {
         object : ActionMode.Callback {
             override fun onCreateActionMode(mode: ActionMode?, menu: Menu?): Boolean {
@@ -165,7 +163,6 @@ fun ReaderScreen(
                     when (item?.itemId) {
                         101 -> viewModel.onTextSelected(text)
                         102 -> viewModel.prepareHighlight(locator)
-                        // v1.8: Dispatch to the new lookup logic
                         103 -> {
                             Log.d("VaachakDebug", "Define clicked for: $text")
                             viewModel.lookupWord(text, activity)
@@ -187,12 +184,22 @@ fun ReaderScreen(
                     viewModel.closeBook()
                     onBack()
                 },
-                onSettingsClick = { showSettings = true }
+                isEink = isEink,
+                actions = {
+                    // SETTINGS BUTTON
+                    IconButton(onClick = { showSettings = true }) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Settings",
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
             )
         },
         bottomBar = {
             if (publication != null && !showSettings) {
-                VaachakFooter(pageInfo = pageInfo)
+                ReaderFooter(pageInfo = pageInfo, isEink = isEink)
             }
         }
     ) { padding ->
@@ -249,6 +256,7 @@ fun ReaderScreen(
                     isImage = isImageResponse,
                     isDictionary = isDictionaryLookup,
                     isDictionaryLoading = isDictionaryLoading,
+                    isEink = isEink,
                     onExplain = { viewModel.onActionExplain() },
                     onWhoIsThis = { viewModel.onActionWhoIsThis() },
                     onVisualize = { viewModel.onActionVisualize() },
@@ -269,7 +277,7 @@ fun ReaderScreen(
                     modifier = Modifier.zIndex(10f)
                 )
             }
-            // 3. Recap Result Dialog
+
             recapText?.let { text ->
                 AlertDialog(
                     onDismissRequest = { viewModel.dismissRecap() },
@@ -285,7 +293,6 @@ fun ReaderScreen(
                         }
                     },
                     dismissButton = {
-                        // Existing Close Button
                         TextButton(onClick = { viewModel.dismissRecap() }) {
                             Text("Dismiss", color = Color.Gray)
                         }
@@ -293,7 +300,7 @@ fun ReaderScreen(
                     modifier = Modifier.zIndex(10f)
                 )
             }
-            // --- NEW: TAG SELECTOR ---
+
             if (showTagSelector) {
                 TagSelectorDialog(
                     onTagSelected = { tag -> viewModel.saveHighlightWithTag(tag) },

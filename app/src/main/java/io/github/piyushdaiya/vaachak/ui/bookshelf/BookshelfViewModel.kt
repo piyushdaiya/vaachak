@@ -3,68 +3,63 @@ package io.github.piyushdaiya.vaachak.ui.bookshelf
 import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
-import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.github.piyushdaiya.vaachak.data.local.BookDao
 import io.github.piyushdaiya.vaachak.data.local.BookEntity
+import io.github.piyushdaiya.vaachak.data.local.HighlightDao
+import io.github.piyushdaiya.vaachak.data.repository.AiRepository
+import io.github.piyushdaiya.vaachak.data.repository.SettingsRepository
 import io.github.piyushdaiya.vaachak.ui.reader.ReadiumManager
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
 import javax.inject.Inject
-import io.github.piyushdaiya.vaachak.data.local.HighlightDao
-import io.github.piyushdaiya.vaachak.data.repository.AiRepository
-import androidx.lifecycle.viewModelScope
-import io.github.piyushdaiya.vaachak.data.local.HighlightEntity
 
-// Define the sorting options
-enum class SortOrder {
-    TITLE, AUTHOR, DATE_ADDED
-}
+enum class SortOrder { TITLE, AUTHOR, DATE_ADDED }
+
 @HiltViewModel
 class BookshelfViewModel @Inject constructor(
     private val bookDao: BookDao,
     private val readiumManager: ReadiumManager,
     private val highlightDao: HighlightDao,
     private val aiRepository: AiRepository,
+    private val settingsRepo: SettingsRepository,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
-    // The private mutable state that the ViewModel can write to
-    private val _snackbarMessage = MutableStateFlow<String?>(null)
+    // --- STATE: THEME ---
+    val isEinkEnabled: StateFlow<Boolean> = settingsRepo.isEinkEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    // The public immutable state that the UI (ReaderScreen) collects
+    // --- STATE: SNACKBAR (ERROR MESSAGES) ---
+    private val _snackbarMessage = MutableStateFlow<String?>(null)
     val snackbarMessage = _snackbarMessage.asStateFlow()
 
-    // 1. Full stream of books sorted by recent
+    // NEW: Helper to reset message after UI shows it
+    fun clearSnackbarMessage() {
+        _snackbarMessage.value = null
+    }
+
+    // --- STATE: BOOKS & SEARCH ---
     val allBooks: StateFlow<List<BookEntity>> = bookDao.getAllBooksSortedByRecent()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // 2. Search Query State
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
-
-
-    // 3. Filtered Library Logic
-    // This combines allBooks and the search query to produce the grid list
 
     private val _sortOrder = MutableStateFlow(SortOrder.DATE_ADDED)
     val sortOrder = _sortOrder.asStateFlow()
 
-    fun updateSortOrder(order: SortOrder) {
-        _sortOrder.value = order
-    }
+    // --- FILTERED LIBRARY ---
     val filteredLibraryBooks: StateFlow<List<BookEntity>> =
         combine(allBooks, searchQuery, _sortOrder) { books, query, order ->
             val filtered = books.filter { book ->
                 book.progress <= 0.0 && book.title.contains(query, ignoreCase = true)
             }
-
             when (order) {
                 SortOrder.TITLE -> filtered.sortedBy { it.title }
                 SortOrder.AUTHOR -> filtered.sortedBy { it.author }
@@ -72,30 +67,34 @@ class BookshelfViewModel @Inject constructor(
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // 4. Update Search Query
-    fun updateSearchQuery(query: String) {
-        _searchQuery.value = query
-    }
-
-    // 5. Hero Card Logic (Continue Reading)
+    // --- HERO SECTION (Continue Reading) ---
     val recentBooks: StateFlow<List<BookEntity>> = allBooks.map { books ->
         books.filter { it.progress > 0.0 }
             .sortedByDescending { it.lastRead }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // --- Book Management Methods ---
+    // --- RECAP STATE ---
+    private val _recapState = MutableStateFlow<Map<String, String>>(emptyMap())
+    val recapState: StateFlow<Map<String, String>> = _recapState.asStateFlow()
+
+    private val _isLoadingRecap = MutableStateFlow<String?>(null)
+    val isLoadingRecap: StateFlow<String?> = _isLoadingRecap.asStateFlow()
+
+    // --- ACTIONS ---
+    fun updateSearchQuery(query: String) { _searchQuery.value = query }
+    fun updateSortOrder(order: SortOrder) { _sortOrder.value = order }
 
     fun importBook(uri: Uri) {
         viewModelScope.launch {
+            // DUPLICATE CHECK
             if (allBooks.value.any { it.uriString == uri.toString() }) {
-                _snackbarMessage.value = "Book is already in your bookshelf"
+                _snackbarMessage.value = "⚠️ Book is already in your library"
                 return@launch
             }
-
             try {
                 val flags = android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
                 context.contentResolver.takePersistableUriPermission(uri, flags)
-            } catch (e: Exception) { /* Log error or ignore if already granted */ }
+            } catch (e: Exception) { /* ignore */ }
 
             val publication = readiumManager.openEpubFromUri(uri)
             if (publication != null) {
@@ -105,10 +104,8 @@ class BookshelfViewModel @Inject constructor(
                 var savedCoverPath: String? = null
                 try {
                     val bitmap = readiumManager.getPublicationCover(publication)
-                    if (bitmap != null) {
-                        savedCoverPath = saveCoverToInternalStorage(bitmap, title)
-                    }
-                } catch (e: Exception) { /* Handle cover failure */ }
+                    if (bitmap != null) savedCoverPath = saveCoverToInternalStorage(bitmap, title)
+                } catch (e: Exception) { /* ignore */ }
 
                 val newBook = BookEntity(
                     title = title,
@@ -121,8 +118,9 @@ class BookshelfViewModel @Inject constructor(
                 )
                 bookDao.insertBook(newBook)
                 readiumManager.closePublication()
+                _snackbarMessage.value = "Book added successfully"
             } else {
-                _snackbarMessage.value = "Failed to open book metadata"
+                _snackbarMessage.value = "Failed to parse book metadata"
             }
         }
     }
@@ -136,34 +134,16 @@ class BookshelfViewModel @Inject constructor(
         return file.absolutePath
     }
 
-    fun deleteBook(id: Long) {
-        viewModelScope.launch {
-            bookDao.deleteBook(id)
-        }
-    }
-    //recap
-    private val _recapState = MutableStateFlow<Map<String, String>>(emptyMap())
-    val recapState: StateFlow<Map<String, String>> = _recapState.asStateFlow()
-
-    private val _isLoadingRecap = MutableStateFlow<String?>(null) // Stores URI of book being summarized
-    val isLoadingRecap: StateFlow<String?> = _isLoadingRecap.asStateFlow()
+    fun deleteBook(id: Long) = viewModelScope.launch { bookDao.deleteBook(id) }
 
     fun getQuickRecap(book: BookEntity) {
         viewModelScope.launch {
             _isLoadingRecap.value = book.uriString
             try {
-                // Fetch highlights for this specific book
                 val contextHighlights = highlightDao.getHighlightsForBook(book.uriString)
-                    .first()
-                    .take(10)
-                    .joinToString("\n") { it.text }
+                    .first().take(10).joinToString("\n") { it.text }
 
-                val summary = aiRepository.getRecallSummary(
-                    bookTitle = book.title,
-                    context = contextHighlights
-                )
-
-                // Map the summary to the book URI
+                val summary = aiRepository.getRecallSummary(book.title, contextHighlights)
                 _recapState.value = _recapState.value + (book.uriString to summary)
             } finally {
                 _isLoadingRecap.value = null
@@ -174,5 +154,4 @@ class BookshelfViewModel @Inject constructor(
     fun clearRecap(uri: String) {
         _recapState.value = _recapState.value - uri
     }
-
 }
