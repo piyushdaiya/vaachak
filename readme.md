@@ -35,6 +35,12 @@ It seamlessly bridges traditional reading with advanced multimodal AI. By levera
   * **Visual Masking**: Gemini keys and Cloudflare tokens are now masked by default to prevent "shoulder surfing."
   * **Content Validation**: The app scans selected Dictionary folders for valid StarDict files (`.idx`) before allowing the configuration to be saved.
   * **Strict Keyboards:** Enforced `ImeAction.Search` and text-only keyboards for library search.
+* **Custom Immersive UI:** A completely custom, distraction-free reading interface that replaces the default system bars.
+  * **Smart Header:** Quick access to TOC, Search, Highlights, and Recap.
+  * **System Footer:** Always-on visibility of Chapter progress, Battery status, and Time.
+* **Search Within Book:** Full-text search with keyword highlighting and instant navigation to results.
+* **Table of Contents (TOC):** Recursive chapter list with "Active Chapter" auto-detection and smart navigation.
+* **AI Quick Recap (In-Reader):** "The Story So Far" — One-tap generation of a context-aware summary of what you have read, with the option to save it as a permanent note.
 ## 🏗️ Architecture
 Vaachak is built using Modern Android Development (MAD) standards and Clean Architecture principles:
 * **UI Layer:** Jetpack Compose, Material 3, Coroutines/Flows.

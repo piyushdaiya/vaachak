@@ -36,7 +36,7 @@ class AiRepository @Inject constructor(
     private suspend fun getGeminiModel(): GenerativeModel {
         val key = settingsRepo.geminiKey.first()
         if (key.isBlank()) throw Exception("Gemini API Key is missing.")
-        return GenerativeModel(modelName = "gemini-2.0-flash", apiKey = key)
+        return GenerativeModel(modelName = "gemini-2.5-flash", apiKey = key)
     }
 
     suspend fun explainContext(selectedText: String): String {

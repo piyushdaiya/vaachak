@@ -1,31 +1,43 @@
 package io.github.piyushdaiya.vaachak.ui.reader
 
+import android.app.Activity
+import android.util.Log
 import android.view.ActionMode
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.widget.FrameLayout
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.zIndex
 import androidx.core.net.toUri
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import androidx.hilt.navigation.compose.hiltViewModel
-import io.github.piyushdaiya.vaachak.ui.reader.components.ReaderFooter
-import io.github.piyushdaiya.vaachak.ui.reader.components.VaachakHeader
-import io.github.piyushdaiya.vaachak.ui.settings.SettingsScreen
 import io.github.piyushdaiya.vaachak.ui.reader.components.AiBottomSheet
+import io.github.piyushdaiya.vaachak.ui.reader.components.BookHighlightsOverlay
+import io.github.piyushdaiya.vaachak.ui.reader.components.BookSearchOverlay
+import io.github.piyushdaiya.vaachak.ui.reader.components.ReaderSystemFooter
+import io.github.piyushdaiya.vaachak.ui.reader.components.ReaderTopBar
+import io.github.piyushdaiya.vaachak.ui.reader.components.TableOfContents
+import io.github.piyushdaiya.vaachak.ui.settings.SettingsScreen
 import kotlinx.coroutines.launch
 import org.readium.r2.navigator.DecorableNavigator
 import org.readium.r2.navigator.epub.EpubNavigatorFactory
@@ -33,11 +45,6 @@ import org.readium.r2.navigator.epub.EpubNavigatorFragment
 import org.readium.r2.shared.ExperimentalReadiumApi
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.util.AbsoluteUrl
-import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.ui.text.font.FontWeight
-import android.util.Log
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalReadiumApi::class)
 @Composable
@@ -48,8 +55,26 @@ fun ReaderScreen(
     viewModel: ReaderViewModel = hiltViewModel()
 ) {
     val activity = LocalContext.current as AppCompatActivity
+    val view = LocalView.current
+
     val publication by viewModel.publication.collectAsState()
     val isEink by viewModel.isEinkEnabled.collectAsState()
+    val showToc by viewModel.showToc.collectAsState()
+    val currentLocator by viewModel.currentLocator.collectAsState()
+
+    // Feature States
+    val showSearch by viewModel.showSearch.collectAsState()
+    val bookSearchQuery by viewModel.bookSearchQuery.collectAsState()
+    val searchResults by viewModel.searchResults.collectAsState()
+    val isBookSearching by viewModel.isBookSearching.collectAsState()
+
+    val showHighlights by viewModel.showHighlights.collectAsState()
+    val highlightsList by viewModel.bookmarksList.collectAsState()
+
+    // Recap States
+    val showRecapConfirmation by viewModel.showRecapConfirmation.collectAsState()
+    val recapText by viewModel.recapText.collectAsState()
+    val isRecapLoading by viewModel.isRecapLoading.collectAsState()
 
     var showSettings by remember { mutableStateOf(false) }
     var showDeleteDialogId by remember { mutableStateOf<Long?>(null) }
@@ -60,22 +85,51 @@ fun ReaderScreen(
     val isImageResponse by viewModel.isImageResponse.collectAsState()
     val isDictionaryLookup by viewModel.isDictionaryLookup.collectAsState()
     val isDictionaryLoading by viewModel.isDictionaryLoading.collectAsState()
-    val showTagSelector by viewModel.showTagSelector.collectAsState()
 
+    val showTagSelector by viewModel.showTagSelector.collectAsState()
     val pageInfo by viewModel.currentPageInfo.collectAsState()
+    val initialLocatorState by viewModel.initialLocator.collectAsState()
+    val savedHighlights by viewModel.currentBookHighlights.collectAsState()
+    val snackbarMessage by viewModel.snackbarMessage.collectAsState()
+
     val scope = rememberCoroutineScope()
     var currentNavigatorFragment by remember { mutableStateOf<EpubNavigatorFragment?>(null) }
-    val initialLocator by viewModel.initialLocator.collectAsState()
-    val savedHighlights by viewModel.currentBookHighlights.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    val recapText by viewModel.recapText.collectAsState()
-    val isRecapLoading by viewModel.isRecapLoading.collectAsState()
+    // Snackbar Logic
+    LaunchedEffect(snackbarMessage) {
+        snackbarMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearSnackbar()
+        }
+    }
+
+    DisposableEffect(Unit) {
+        val window = (view.context as? Activity)?.window
+        if (window != null) {
+            val insetsController = WindowCompat.getInsetsController(window, view)
+            insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            insetsController.hide(WindowInsetsCompat.Type.systemBars())
+            onDispose { insetsController.show(WindowInsetsCompat.Type.systemBars()) }
+        } else {
+            onDispose { }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.navigationEvent.collect { link -> currentNavigatorFragment?.go(link, animated = false) }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.jumpEvent.collect { locator ->
+            Log.d("ReaderScreen", "Jumping to locator: $locator")
+            currentNavigatorFragment?.go(locator, animated = false)
+        }
+    }
 
     LaunchedEffect(savedHighlights, isNavigatorReady) {
         val navigator = currentNavigatorFragment ?: return@LaunchedEffect
-        if (isNavigatorReady) {
-            navigator.applyDecorations(savedHighlights, "user_highlights")
-        }
+        if (isNavigatorReady) navigator.applyDecorations(savedHighlights, "user_highlights")
     }
 
     LaunchedEffect(initialUri, initialLocatorJson) {
@@ -87,9 +141,7 @@ fun ReaderScreen(
 
     val navListener = remember {
         object : EpubNavigatorFragment.Listener {
-            override fun onJumpToLocator(locator: Locator) {
-                viewModel.updateProgress(locator)
-            }
+            override fun onJumpToLocator(locator: Locator) { viewModel.updateProgress(locator) }
             override fun onExternalLinkActivated(url: AbsoluteUrl) {}
         }
     }
@@ -98,21 +150,20 @@ fun ReaderScreen(
         if (showDeleteDialogId != null) showDeleteDialogId = null
         else if (showTagSelector) viewModel.dismissTagSelector()
         else if (showSettings) showSettings = false
+        else if (showToc) viewModel.toggleToc()
+        else if (showSearch) viewModel.toggleSearch()
+        else if (showHighlights) viewModel.toggleHighlights()
+        else if (showRecapConfirmation) viewModel.dismissRecapConfirmation()
+        else if (recapText != null) viewModel.dismissRecapResult()
         else if (isBottomSheetVisible) viewModel.dismissBottomSheet()
-        else {
-            viewModel.closeBook()
-            onBack()
-        }
+        else { viewModel.closeBook(); onBack() }
     }
 
     val decorationListener = remember {
         object : DecorableNavigator.Listener {
             override fun onDecorationActivated(event: DecorableNavigator.OnActivatedEvent): Boolean {
                 if (event.group == "user_highlights") {
-                    event.decoration.id.toLongOrNull()?.let {
-                        showDeleteDialogId = it
-                        return true
-                    }
+                    event.decoration.id.toLongOrNull()?.let { showDeleteDialogId = it; return true }
                 }
                 return false
             }
@@ -124,23 +175,16 @@ fun ReaderScreen(
         val fm = activity.supportFragmentManager
         val callbacks = object : FragmentManager.FragmentLifecycleCallbacks() {
             override fun onFragmentStarted(fm: FragmentManager, f: Fragment) {
-                if (f == navigator) {
-                    isNavigatorReady = true
-                    navigator.addDecorationListener("user_highlights", decorationListener)
-                }
+                if (f == navigator) { isNavigatorReady = true; navigator.addDecorationListener("user_highlights", decorationListener) }
             }
         }
         if (navigator.isAdded && !navigator.isDetached) {
             isNavigatorReady = true
             navigator.addDecorationListener("user_highlights", decorationListener)
-        } else {
-            fm.registerFragmentLifecycleCallbacks(callbacks, false)
-        }
+        } else { fm.registerFragmentLifecycleCallbacks(callbacks, false) }
         onDispose {
             fm.unregisterFragmentLifecycleCallbacks(callbacks)
-            if (navigator.isAdded) {
-                try { navigator.removeDecorationListener(decorationListener) } catch (e: Exception) {}
-            }
+            if (navigator.isAdded) { try { navigator.removeDecorationListener(decorationListener) } catch (e: Exception) {} }
             isNavigatorReady = false
         }
     }
@@ -159,14 +203,10 @@ fun ReaderScreen(
                     val selection = currentNavigatorFragment?.currentSelection()
                     val locator = selection?.locator ?: return@launch
                     val text = locator.text.highlight ?: ""
-
                     when (item?.itemId) {
                         101 -> viewModel.onTextSelected(text)
                         102 -> viewModel.prepareHighlight(locator)
-                        103 -> {
-                            Log.d("VaachakDebug", "Define clicked for: $text")
-                            viewModel.lookupWord(text, activity)
-                        }
+                        103 -> viewModel.lookupWord(text, activity)
                     }
                     mode?.finish()
                 }
@@ -178,30 +218,24 @@ fun ReaderScreen(
 
     Scaffold(
         topBar = {
-            VaachakHeader(
-                title = publication?.metadata?.title ?: "Loading...",
-                onBack = {
-                    viewModel.closeBook()
-                    onBack()
-                },
+            ReaderTopBar(
+                bookTitle = publication?.metadata?.title ?: "Loading...",
                 isEink = isEink,
-                actions = {
-                    // SETTINGS BUTTON
-                    IconButton(onClick = { showSettings = true }) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "Settings",
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
-                }
+                onBack = { viewModel.closeBook(); onBack() },
+                onTocClick = { viewModel.toggleToc() },
+                onSearchClick = { viewModel.toggleSearch() },
+                onHighlightsClick = { viewModel.toggleHighlights() },
+                // CONNECTED: Click triggers confirmation
+                onRecapClick = { viewModel.onRecapClicked() },
+                onSettingsClick = { showSettings = true }
             )
         },
         bottomBar = {
-            if (publication != null && !showSettings) {
-                ReaderFooter(pageInfo = pageInfo, isEink = isEink)
+            if (publication != null && !showSettings && !showToc && !showSearch && !showHighlights) {
+                ReaderSystemFooter(chapterTitle = pageInfo, isEink = isEink)
             }
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         Box(modifier = Modifier.padding(padding).fillMaxSize(), contentAlignment = Alignment.Center) {
             if (publication == null) {
@@ -213,39 +247,128 @@ fun ReaderScreen(
                             id = View.generateViewId()
                             val fm = activity.supportFragmentManager
                             val existing = fm.findFragmentByTag("EPUB_READER_FRAGMENT")
-                            if (existing != null) {
-                                fm.beginTransaction().remove(existing).commitNow()
-                            }
+                            if (existing != null) fm.beginTransaction().remove(existing).commitNow()
 
                             val factory = EpubNavigatorFactory(publication!!)
                             val fragment = factory.createFragmentFactory(
-                                initialLocator = initialLocator,
+                                initialLocator = initialLocatorState,
                                 configuration = EpubNavigatorFragment.Configuration().apply {
                                     selectionActionModeCallback = aiSelectionCallback
                                 },
                                 listener = navListener
                             ).instantiate(activity.classLoader, EpubNavigatorFragment::class.java.name) as EpubNavigatorFragment
 
-                            scope.launch {
-                                fragment.currentLocator.collect { locator ->
-                                    viewModel.updateProgress(locator)
-                                }
-                            }
+                            scope.launch { fragment.currentLocator.collect { locator -> viewModel.updateProgress(locator) } }
                             currentNavigatorFragment = fragment
-                            fm.beginTransaction()
-                                .replace(this.id, fragment, "EPUB_READER_FRAGMENT")
-                                .commit()
+                            fm.beginTransaction().replace(this.id, fragment, "EPUB_READER_FRAGMENT").commit()
                         }
                     },
-                    modifier = Modifier.fillMaxSize().padding(padding)
+                    modifier = Modifier.fillMaxSize()
                 )
             }
 
-            // --- OVERLAYS ---
+            // --- RECAP DIALOGS ---
+
+            // 1. Loading Indicator
+            if (isRecapLoading) {
+                AlertDialog(
+                    onDismissRequest = {},
+                    title = { Text("Generating Recap...") },
+                    text = {
+                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator()
+                        }
+                    },
+                    confirmButton = {},
+                    modifier = Modifier.zIndex(20f)
+                )
+            }
+
+            // 2. Confirmation Dialog (Yes/No)
+            if (showRecapConfirmation) {
+                AlertDialog(
+                    onDismissRequest = { viewModel.dismissRecapConfirmation() },
+                    title = { Text("Quick Recap") },
+                    text = { Text("Would you like to generate a quick recap of the book so far?") },
+                    confirmButton = {
+                        TextButton(onClick = { viewModel.generateRecap() }) {
+                            Text("Yes", fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { viewModel.dismissRecapConfirmation() }) {
+                            Text("No", color = Color.Gray)
+                        }
+                    },
+                    modifier = Modifier.zIndex(20f)
+                )
+            }
+
+            // 3. Result Dialog with "Save" option
+            recapText?.let { text ->
+                AlertDialog(
+                    onDismissRequest = { viewModel.dismissRecapResult() },
+                    title = { Text("The Story So Far") },
+                    text = {
+                        Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                            Text(text, style = MaterialTheme.typography.bodyMedium, color = Color.DarkGray)
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { viewModel.saveRecapAsHighlight() }) {
+                            Text("Save to Highlights", fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { viewModel.dismissRecapResult() }) {
+                            Text("Dismiss", color = Color.Gray)
+                        }
+                    },
+                    modifier = Modifier.zIndex(20f)
+                )
+            }
+
+            // --- OTHER OVERLAYS ---
+            if (showSearch) {
+                Surface(modifier = Modifier.fillMaxSize().zIndex(15f)) {
+                    BookSearchOverlay(
+                        query = bookSearchQuery,
+                        results = searchResults,
+                        isSearching = isBookSearching,
+                        onQueryChange = { viewModel.searchInBook(it) },
+                        onSearch = { viewModel.searchInBook(it) },
+                        onResultClick = { viewModel.onSearchResultClicked(it) },
+                        onDismiss = { viewModel.toggleSearch() },
+                        isEink = isEink
+                    )
+                }
+            }
+
+            if (showHighlights) {
+                Surface(modifier = Modifier.fillMaxSize().zIndex(15f)) {
+                    BookHighlightsOverlay(
+                        highlights = highlightsList,
+                        onHighlightClick = { viewModel.onHighlightClicked(it) },
+                        onDismiss = { viewModel.toggleHighlights() },
+                        isEink = isEink
+                    )
+                }
+            }
+
+            if (showToc && publication != null) {
+                Surface(modifier = Modifier.fillMaxSize().zIndex(15f)) {
+                    TableOfContents(
+                        toc = publication!!.tableOfContents,
+                        currentHref = currentLocator?.href?.toString(),
+                        onLinkSelected = { link -> viewModel.onTocItemSelected(link) },
+                        onDismiss = { viewModel.toggleToc() },
+                        isEink = isEink
+                    )
+                }
+            }
 
             if (showSettings) {
-                Surface(modifier = Modifier.fillMaxSize()
-                    .zIndex(10f)) {
+                Surface(modifier = Modifier.fillMaxSize().zIndex(10f)) {
                     SettingsScreen(onBack = { showSettings = false })
                 }
             }
@@ -264,43 +387,6 @@ fun ReaderScreen(
                 )
             }
 
-            if (isRecapLoading) {
-                AlertDialog(
-                    onDismissRequest = { },
-                    confirmButton = { },
-                    title = { Text("Analyzing your journey...") },
-                    text = {
-                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = Color.Black)
-                        }
-                    },
-                    modifier = Modifier.zIndex(10f)
-                )
-            }
-
-            recapText?.let { text ->
-                AlertDialog(
-                    onDismissRequest = { viewModel.dismissRecap() },
-                    title = { Text("The Story So Far") },
-                    text = {
-                        Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                            Text(text, style = MaterialTheme.typography.bodyMedium, color = Color.DarkGray)
-                        }
-                    },
-                    confirmButton = {
-                        TextButton(onClick = { viewModel.dismissRecap() }) {
-                            Text("Back to Reading", fontWeight = FontWeight.Bold)
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { viewModel.dismissRecap() }) {
-                            Text("Dismiss", color = Color.Gray)
-                        }
-                    },
-                    modifier = Modifier.zIndex(10f)
-                )
-            }
-
             if (showTagSelector) {
                 TagSelectorDialog(
                     onTagSelected = { tag -> viewModel.saveHighlightWithTag(tag) },
@@ -314,12 +400,7 @@ fun ReaderScreen(
                     title = { Text("Delete Highlight?") },
                     text = { Text("This action cannot be undone.") },
                     confirmButton = {
-                        TextButton(
-                            onClick = {
-                                viewModel.deleteHighlight(showDeleteDialogId!!)
-                                showDeleteDialogId = null
-                            }
-                        ) { Text("Delete", color = Color.Red) }
+                        TextButton(onClick = { viewModel.deleteHighlight(showDeleteDialogId!!); showDeleteDialogId = null }) { Text("Delete", color = Color.Red) }
                     },
                     dismissButton = {
                         TextButton(onClick = { showDeleteDialogId = null }) { Text("Cancel") }
@@ -331,7 +412,6 @@ fun ReaderScreen(
     }
 }
 
-// --- HELPER COMPONENT ---
 @Composable
 fun TagSelectorDialog(
     onTagSelected: (String) -> Unit,
@@ -348,16 +428,12 @@ fun TagSelectorDialog(
                         onClick = { onTagSelected(tag) },
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Black)
-                    ) {
-                        Text(tag)
-                    }
+                    ) { Text(tag) }
                 }
             }
         },
         confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
         modifier = Modifier.zIndex(5f)
     )
 }
