@@ -41,6 +41,10 @@ class ReaderViewModel @Inject constructor(
     val isEinkEnabled: StateFlow<Boolean> = settingsRepo.isEinkEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
+    // NEW: Offline Mode
+    val isOfflineModeEnabled: StateFlow<Boolean> = settingsRepo.isOfflineModeEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
     // --- 2. READER STATE ---
     private val _publication = MutableStateFlow<Publication?>(null)
     val publication: StateFlow<Publication?> = _publication.asStateFlow()
@@ -151,19 +155,19 @@ class ReaderViewModel @Inject constructor(
     fun dismissRecapConfirmation() { _showRecapConfirmation.value = false }
 
     fun generateRecap() {
+        if (isOfflineModeEnabled.value) return // Block if offline
         _showRecapConfirmation.value = false
         _isRecapLoading.value = true
 
         viewModelScope.launch {
             val title = _publication.value?.metadata?.title ?: "Unknown Book"
             val currentContext = "Current Position: ${_currentPageInfo.value}"
-            val summary = aiRepository.getRecallSummary(title, currentContext)
-            _recapText.value = summary
+            val quickrecap = aiRepository.getQuickRecap(title, currentContext)
+            _recapText.value = quickrecap
             _isRecapLoading.value = false
         }
     }
 
-    // --- FIX: USE NAMED ARGUMENTS TO FIX TYPE MISMATCH ---
     fun saveRecapAsHighlight() {
         val summary = _recapText.value ?: return
         val currentUri = initialUri ?: return
@@ -249,9 +253,21 @@ class ReaderViewModel @Inject constructor(
     fun deleteHighlight(id: Long) { viewModelScope.launch { highlightDao.deleteHighlightById(id) } }
     fun dismissTagSelector() { _showTagSelector.value = false; pendingHighlightLocator = null }
     fun onTextSelected(t: String) { currentSelectedText = t; _isBottomSheetVisible.value = true }
-    fun onActionExplain() { viewModelScope.launch { performAiAction("Thinking...") { aiRepository.explainContext(currentSelectedText) } } }
-    fun onActionWhoIsThis() { viewModelScope.launch { performAiAction("Investigating...") { aiRepository.whoIsThis(currentSelectedText, _publication.value?.metadata?.title?:"", "") } } }
-    fun onActionVisualize() { viewModelScope.launch { performAiAction("Drawing...") { aiRepository.visualizeText(currentSelectedText) }; _isImageResponse.value = true } }
+
+    // FAILSAFE: Block AI if Offline
+    fun onActionExplain() {
+        if (isOfflineModeEnabled.value) return
+        viewModelScope.launch { performAiAction("Thinking...") { aiRepository.explainContext(currentSelectedText) } }
+    }
+    fun onActionWhoIsThis() {
+        if (isOfflineModeEnabled.value) return
+        viewModelScope.launch { performAiAction("Investigating...") { aiRepository.whoIsThis(currentSelectedText, _publication.value?.metadata?.title?:"", "") } }
+    }
+    fun onActionVisualize() {
+        if (isOfflineModeEnabled.value) return
+        viewModelScope.launch { performAiAction("Drawing...") { aiRepository.visualizeText(currentSelectedText) }; _isImageResponse.value = true }
+    }
+
     private suspend fun performAiAction(m: String, a: suspend () -> String) { _aiResponse.value = m; try { _aiResponse.value = a() } catch(e:Exception){ _aiResponse.value = e.message?:"" } }
     fun lookupWord(w: String, c: Context) { /* ... */ }
     fun dismissRecap() { _recapText.value = null }

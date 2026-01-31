@@ -59,10 +59,11 @@ fun ReaderScreen(
 
     val publication by viewModel.publication.collectAsState()
     val isEink by viewModel.isEinkEnabled.collectAsState()
+    val isOfflineMode by viewModel.isOfflineModeEnabled.collectAsState()
+
     val showToc by viewModel.showToc.collectAsState()
     val currentLocator by viewModel.currentLocator.collectAsState()
 
-    // Feature States
     val showSearch by viewModel.showSearch.collectAsState()
     val bookSearchQuery by viewModel.bookSearchQuery.collectAsState()
     val searchResults by viewModel.searchResults.collectAsState()
@@ -71,7 +72,6 @@ fun ReaderScreen(
     val showHighlights by viewModel.showHighlights.collectAsState()
     val highlightsList by viewModel.bookmarksList.collectAsState()
 
-    // Recap States
     val showRecapConfirmation by viewModel.showRecapConfirmation.collectAsState()
     val recapText by viewModel.recapText.collectAsState()
     val isRecapLoading by viewModel.isRecapLoading.collectAsState()
@@ -96,7 +96,6 @@ fun ReaderScreen(
     var currentNavigatorFragment by remember { mutableStateOf<EpubNavigatorFragment?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // Snackbar Logic
     LaunchedEffect(snackbarMessage) {
         snackbarMessage?.let {
             snackbarHostState.showSnackbar(it)
@@ -116,22 +115,12 @@ fun ReaderScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
-        viewModel.navigationEvent.collect { link -> currentNavigatorFragment?.go(link, animated = false) }
-    }
-
-    LaunchedEffect(Unit) {
-        viewModel.jumpEvent.collect { locator ->
-            Log.d("ReaderScreen", "Jumping to locator: $locator")
-            currentNavigatorFragment?.go(locator, animated = false)
-        }
-    }
-
+    LaunchedEffect(Unit) { viewModel.navigationEvent.collect { link -> currentNavigatorFragment?.go(link, animated = false) } }
+    LaunchedEffect(Unit) { viewModel.jumpEvent.collect { locator -> currentNavigatorFragment?.go(locator, animated = false) } }
     LaunchedEffect(savedHighlights, isNavigatorReady) {
         val navigator = currentNavigatorFragment ?: return@LaunchedEffect
         if (isNavigatorReady) navigator.applyDecorations(savedHighlights, "user_highlights")
     }
-
     LaunchedEffect(initialUri, initialLocatorJson) {
         if (initialUri != null) {
             viewModel.setInitialLocation(initialLocatorJson)
@@ -189,12 +178,14 @@ fun ReaderScreen(
         }
     }
 
-    val aiSelectionCallback = remember {
+    val aiSelectionCallback = remember(isOfflineMode) {
         object : ActionMode.Callback {
             override fun onCreateActionMode(mode: ActionMode?, menu: Menu?): Boolean {
-                menu?.add(Menu.NONE, 101, 0, "Ask AI")
+                if (!isOfflineMode) {
+                    menu?.add(Menu.NONE, 101, 0, "Ask AI")
+                    menu?.add(Menu.NONE, 103, 2, "Define")
+                }
                 menu?.add(Menu.NONE, 102, 1, "Highlight")
-                menu?.add(Menu.NONE, 103, 2, "Define")
                 return true
             }
             override fun onPrepareActionMode(mode: ActionMode?, menu: Menu?) = false
@@ -221,11 +212,14 @@ fun ReaderScreen(
             ReaderTopBar(
                 bookTitle = publication?.metadata?.title ?: "Loading...",
                 isEink = isEink,
+
+                // FIXED: Pass the inverse of offline mode
+                showRecap = !isOfflineMode,
+
                 onBack = { viewModel.closeBook(); onBack() },
                 onTocClick = { viewModel.toggleToc() },
                 onSearchClick = { viewModel.toggleSearch() },
                 onHighlightsClick = { viewModel.toggleHighlights() },
-                // CONNECTED: Click triggers confirmation
                 onRecapClick = { viewModel.onRecapClicked() },
                 onSettingsClick = { showSettings = true }
             )
@@ -267,103 +261,47 @@ fun ReaderScreen(
                 )
             }
 
-            // --- RECAP DIALOGS ---
-
-            // 1. Loading Indicator
             if (isRecapLoading) {
-                AlertDialog(
-                    onDismissRequest = {},
-                    title = { Text("Generating Recap...") },
-                    text = {
-                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator()
-                        }
-                    },
-                    confirmButton = {},
-                    modifier = Modifier.zIndex(20f)
-                )
+                AlertDialog(onDismissRequest = {}, title = { Text("Generating Recap...") }, text = { Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }, confirmButton = {}, modifier = Modifier.zIndex(20f))
             }
 
-            // 2. Confirmation Dialog (Yes/No)
             if (showRecapConfirmation) {
                 AlertDialog(
                     onDismissRequest = { viewModel.dismissRecapConfirmation() },
                     title = { Text("Quick Recap") },
                     text = { Text("Would you like to generate a quick recap of the book so far?") },
-                    confirmButton = {
-                        TextButton(onClick = { viewModel.generateRecap() }) {
-                            Text("Yes", fontWeight = FontWeight.Bold)
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { viewModel.dismissRecapConfirmation() }) {
-                            Text("No", color = Color.Gray)
-                        }
-                    },
+                    confirmButton = { TextButton(onClick = { viewModel.generateRecap() }) { Text("Yes", fontWeight = FontWeight.Bold) } },
+                    dismissButton = { TextButton(onClick = { viewModel.dismissRecapConfirmation() }) { Text("No", color = Color.Gray) } },
                     modifier = Modifier.zIndex(20f)
                 )
             }
 
-            // 3. Result Dialog with "Save" option
             recapText?.let { text ->
                 AlertDialog(
                     onDismissRequest = { viewModel.dismissRecapResult() },
                     title = { Text("The Story So Far") },
-                    text = {
-                        Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                            Text(text, style = MaterialTheme.typography.bodyMedium, color = Color.DarkGray)
-                        }
-                    },
-                    confirmButton = {
-                        TextButton(onClick = { viewModel.saveRecapAsHighlight() }) {
-                            Text("Save to Highlights", fontWeight = FontWeight.Bold)
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { viewModel.dismissRecapResult() }) {
-                            Text("Dismiss", color = Color.Gray)
-                        }
-                    },
+                    text = { Column(modifier = Modifier.verticalScroll(rememberScrollState())) { Text(text, style = MaterialTheme.typography.bodyMedium, color = Color.DarkGray) } },
+                    confirmButton = { TextButton(onClick = { viewModel.saveRecapAsHighlight() }) { Text("Save to Highlights", fontWeight = FontWeight.Bold) } },
+                    dismissButton = { TextButton(onClick = { viewModel.dismissRecapResult() }) { Text("Dismiss", color = Color.Gray) } },
                     modifier = Modifier.zIndex(20f)
                 )
             }
 
-            // --- OTHER OVERLAYS ---
             if (showSearch) {
                 Surface(modifier = Modifier.fillMaxSize().zIndex(15f)) {
-                    BookSearchOverlay(
-                        query = bookSearchQuery,
-                        results = searchResults,
-                        isSearching = isBookSearching,
-                        onQueryChange = { viewModel.searchInBook(it) },
-                        onSearch = { viewModel.searchInBook(it) },
-                        onResultClick = { viewModel.onSearchResultClicked(it) },
-                        onDismiss = { viewModel.toggleSearch() },
-                        isEink = isEink
-                    )
+                    BookSearchOverlay(query = bookSearchQuery, results = searchResults, isSearching = isBookSearching, onQueryChange = { viewModel.searchInBook(it) }, onSearch = { viewModel.searchInBook(it) }, onResultClick = { viewModel.onSearchResultClicked(it) }, onDismiss = { viewModel.toggleSearch() }, isEink = isEink)
                 }
             }
 
             if (showHighlights) {
                 Surface(modifier = Modifier.fillMaxSize().zIndex(15f)) {
-                    BookHighlightsOverlay(
-                        highlights = highlightsList,
-                        onHighlightClick = { viewModel.onHighlightClicked(it) },
-                        onDismiss = { viewModel.toggleHighlights() },
-                        isEink = isEink
-                    )
+                    BookHighlightsOverlay(highlights = highlightsList, onHighlightClick = { viewModel.onHighlightClicked(it) }, onDismiss = { viewModel.toggleHighlights() }, isEink = isEink)
                 }
             }
 
             if (showToc && publication != null) {
                 Surface(modifier = Modifier.fillMaxSize().zIndex(15f)) {
-                    TableOfContents(
-                        toc = publication!!.tableOfContents,
-                        currentHref = currentLocator?.href?.toString(),
-                        onLinkSelected = { link -> viewModel.onTocItemSelected(link) },
-                        onDismiss = { viewModel.toggleToc() },
-                        isEink = isEink
-                    )
+                    TableOfContents(toc = publication!!.tableOfContents, currentHref = currentLocator?.href?.toString(), onLinkSelected = { link -> viewModel.onTocItemSelected(link) }, onDismiss = { viewModel.toggleToc() }, isEink = isEink)
                 }
             }
 
@@ -374,44 +312,21 @@ fun ReaderScreen(
             }
 
             if (isBottomSheetVisible) {
-                AiBottomSheet(
-                    responseText = aiResponse,
-                    isImage = isImageResponse,
-                    isDictionary = isDictionaryLookup,
-                    isDictionaryLoading = isDictionaryLoading,
-                    isEink = isEink,
-                    onExplain = { viewModel.onActionExplain() },
-                    onWhoIsThis = { viewModel.onActionWhoIsThis() },
-                    onVisualize = { viewModel.onActionVisualize() },
-                    onDismiss = { viewModel.dismissBottomSheet() }
-                )
+                AiBottomSheet(responseText = aiResponse, isImage = isImageResponse, isDictionary = isDictionaryLookup, isDictionaryLoading = isDictionaryLoading, isEink = isEink, onExplain = { viewModel.onActionExplain() }, onWhoIsThis = { viewModel.onActionWhoIsThis() }, onVisualize = { viewModel.onActionVisualize() }, onDismiss = { viewModel.dismissBottomSheet() })
             }
 
             if (showTagSelector) {
-                TagSelectorDialog(
-                    onTagSelected = { tag -> viewModel.saveHighlightWithTag(tag) },
-                    onDismiss = { viewModel.dismissTagSelector() }
-                )
+                TagSelectorDialog(onTagSelected = { tag -> viewModel.saveHighlightWithTag(tag) }, onDismiss = { viewModel.dismissTagSelector() })
             }
 
             if (showDeleteDialogId != null) {
-                AlertDialog(
-                    onDismissRequest = { showDeleteDialogId = null },
-                    title = { Text("Delete Highlight?") },
-                    text = { Text("This action cannot be undone.") },
-                    confirmButton = {
-                        TextButton(onClick = { viewModel.deleteHighlight(showDeleteDialogId!!); showDeleteDialogId = null }) { Text("Delete", color = Color.Red) }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showDeleteDialogId = null }) { Text("Cancel") }
-                    },
-                    modifier = Modifier.zIndex(4f)
-                )
+                AlertDialog(onDismissRequest = { showDeleteDialogId = null }, title = { Text("Delete Highlight?") }, text = { Text("This action cannot be undone.") }, confirmButton = { TextButton(onClick = { viewModel.deleteHighlight(showDeleteDialogId!!); showDeleteDialogId = null }) { Text("Delete", color = Color.Red) } }, dismissButton = { TextButton(onClick = { showDeleteDialogId = null }) { Text("Cancel") } }, modifier = Modifier.zIndex(4f))
             }
         }
     }
 }
 
+// FIX: Added the missing helper function
 @Composable
 fun TagSelectorDialog(
     onTagSelected: (String) -> Unit,

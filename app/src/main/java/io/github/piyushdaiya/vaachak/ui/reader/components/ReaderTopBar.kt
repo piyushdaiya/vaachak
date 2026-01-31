@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.sp
 fun ReaderTopBar(
     bookTitle: String,
     isEink: Boolean,
+    showRecap: Boolean, // NEW: Control visibility
     onBack: () -> Unit,
     onTocClick: () -> Unit,
     onSearchClick: () -> Unit,
@@ -76,8 +77,10 @@ fun ReaderTopBar(
                     ReaderActionIcon(Icons.Default.Search, "Search", onSearchClick)
                     ReaderActionIcon(Icons.Default.Edit, "Highlights", onHighlightsClick)
 
-                    // CHANGED: Use 'History' icon for "The Story So Far"
-                    ReaderActionIcon(Icons.Default.History, "Recap", onRecapClick)
+                    // FIXED: Only show if showRecap is true (Not Offline)
+                    if (showRecap) {
+                        ReaderActionIcon(Icons.Default.History, "Recap", onRecapClick)
+                    }
 
                     ReaderActionIcon(Icons.Default.Settings, "Settings", onSettingsClick)
                 }

@@ -15,7 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.MenuBook // <--- FIXED IMPORT
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -50,26 +50,21 @@ fun BookshelfScreen(
     val continueReadingBooks by viewModel.recentBooks.collectAsState()
     val isEink by viewModel.isEinkEnabled.collectAsState()
 
+    // NEW: Observe Offline Mode
+    val isOfflineMode by viewModel.isOfflineModeEnabled.collectAsState()
+
     val snackbarHostState = remember { SnackbarHostState() }
     val snackbarMessage by viewModel.snackbarMessage.collectAsState()
-
     val sortOrder by viewModel.sortOrder.collectAsState()
     var showSortMenu by remember { mutableStateOf(false) }
-
     val recapState by viewModel.recapState.collectAsState()
     val loadingUri by viewModel.isLoadingRecap.collectAsState()
 
     LaunchedEffect(snackbarMessage) {
-        snackbarMessage?.let { message ->
-            snackbarHostState.showSnackbar(message)
-            viewModel.clearSnackbarMessage()
-        }
+        snackbarMessage?.let { message -> snackbarHostState.showSnackbar(message); viewModel.clearSnackbarMessage() }
     }
 
-    val launcher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { uri: Uri? -> uri?.let { viewModel.importBook(it) } }
-
+    val launcher = rememberLauncherForActivityResult(contract = ActivityResultContracts.OpenDocument()) { uri: Uri? -> uri?.let { viewModel.importBook(it) } }
     val containerColor = if (isEink) Color.White else MaterialTheme.colorScheme.background
 
     Scaffold(
@@ -80,12 +75,11 @@ fun BookshelfScreen(
                 showBackButton = false,
                 isEink = isEink,
                 actions = {
-                    IconButton(onClick = onRecallClick) {
-                        Icon(Icons.Default.AutoAwesome, "Recall", Modifier.size(22.dp))
+                    // CONDITION: Hide Recall if Offline
+                    if (!isOfflineMode) {
+                        IconButton(onClick = onRecallClick) { Icon(Icons.Default.AutoAwesome, "Recall", Modifier.size(22.dp)) }
                     }
-                    IconButton(onClick = onSettingsClick) {
-                        Icon(Icons.Default.Settings, "Settings", Modifier.size(22.dp))
-                    }
+                    IconButton(onClick = onSettingsClick) { Icon(Icons.Default.Settings, "Settings", Modifier.size(22.dp)) }
                 }
             )
         },
@@ -96,34 +90,22 @@ fun BookshelfScreen(
                 containerColor = if(isEink) Color.Black else MaterialTheme.colorScheme.primaryContainer,
                 contentColor = if(isEink) Color.White else MaterialTheme.colorScheme.onPrimaryContainer,
                 elevation = FloatingActionButtonDefaults.elevation(0.dp)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text("Add Book", fontWeight = FontWeight.Bold)
-            }
+            ) { Icon(Icons.Default.Add, contentDescription = null); Spacer(Modifier.width(8.dp)); Text("Add Book", fontWeight = FontWeight.Bold) }
         },
         containerColor = containerColor
     ) { padding ->
         if (allBooks.isEmpty()) {
             EmptyShelfPlaceholder(padding, isEink)
         } else {
-            LazyColumn(
-                modifier = Modifier.padding(padding).fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 88.dp)
-            ) {
+            LazyColumn(modifier = Modifier.padding(padding).fillMaxSize(), contentPadding = PaddingValues(bottom = 88.dp)) {
                 if (continueReadingBooks.isNotEmpty() && searchQuery.isEmpty()) {
                     item {
                         BookshelfSectionLabel("Continue Reading", isEink)
-                        LazyRow(
-                            contentPadding = PaddingValues(horizontal = 16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
+                        LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             items(continueReadingBooks, key = { it.id }) { book ->
                                 BookCard(
-                                    book = book,
-                                    isCompact = true,
-                                    showRecap = true,
-                                    isEink = isEink,
+                                    book = book, isCompact = true, isEink = isEink,
+                                    showRecap = !isOfflineMode, // CONDITION
                                     isLoadingRecap = loadingUri == book.uriString,
                                     onClick = { onBookClick(book.uriString) },
                                     onDelete = { viewModel.deleteBook(book.id) },
@@ -132,46 +114,30 @@ fun BookshelfScreen(
                             }
                         }
                         Spacer(modifier = Modifier.height(16.dp))
-                        HorizontalDivider(
-                            modifier = Modifier.padding(horizontal = 16.dp),
-                            thickness = if(isEink) 1.dp else 0.5.dp,
-                            color = if(isEink) Color.Black else MaterialTheme.colorScheme.outlineVariant
-                        )
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = if(isEink) 1.dp else 0.5.dp, color = if(isEink) Color.Black else MaterialTheme.colorScheme.outlineVariant)
                     }
                 }
 
                 item {
                     LibraryControls(
-                        searchQuery = searchQuery,
-                        sortOrder = sortOrder,
-                        showSortMenu = showSortMenu,
-                        isEink = isEink,
+                        searchQuery = searchQuery, sortOrder = sortOrder, showSortMenu = showSortMenu, isEink = isEink,
                         onSearchChange = { viewModel.updateSearchQuery(it) },
                         onSortClick = { showSortMenu = true },
                         onSortDismiss = { showSortMenu = false },
-                        onSortSelect = {
-                            viewModel.updateSortOrder(it)
-                            showSortMenu = false
-                        }
+                        onSortSelect = { viewModel.updateSortOrder(it); showSortMenu = false }
                     )
                 }
 
                 if (libraryBooks.isEmpty() && searchQuery.isNotEmpty()) {
                     item { SearchEmptyState(searchQuery, isEink) { viewModel.updateSearchQuery("") } }
                 } else {
-                    val bookRows = libraryBooks.chunked(3)
-                    items(bookRows) { rowBooks ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
+                    items(libraryBooks.chunked(3)) { rowBooks ->
+                        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             for (book in rowBooks) {
                                 Box(modifier = Modifier.weight(1f)) {
                                     BookCard(
-                                        book = book,
-                                        isCompact = true,
-                                        showRecap = false,
-                                        isEink = isEink,
+                                        book = book, isCompact = true, isEink = isEink,
+                                        showRecap = false, // Never show summary on main library list (design choice)
                                         isLoadingRecap = loadingUri == book.uriString,
                                         onClick = { onBookClick(book.uriString) },
                                         onDelete = { viewModel.deleteBook(book.id) },
@@ -186,30 +152,22 @@ fun BookshelfScreen(
             }
         }
 
+        // Recap Dialog
         continueReadingBooks.forEach { book ->
             recapState[book.uriString]?.let { recap ->
                 AlertDialog(
                     onDismissRequest = { viewModel.clearRecap(book.uriString) },
                     title = { Text("Quick Recap: ${book.title}") },
-                    text = {
-                        Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                            Text(recap, style = MaterialTheme.typography.bodyMedium)
-                        }
-                    },
-                    confirmButton = {
-                        Button(onClick = {
-                            viewModel.clearRecap(book.uriString)
-                            onBookClick(book.uriString)
-                        }) { Text("Resume Reading") }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { viewModel.clearRecap(book.uriString) }) { Text("Close") }
-                    }
+                    text = { Column(modifier = Modifier.verticalScroll(rememberScrollState())) { Text(recap, style = MaterialTheme.typography.bodyMedium) } },
+                    confirmButton = { Button(onClick = { viewModel.clearRecap(book.uriString); onBookClick(book.uriString) }) { Text("Resume Reading") } },
+                    dismissButton = { TextButton(onClick = { viewModel.clearRecap(book.uriString) }) { Text("Close") } }
                 )
             }
         }
     }
 }
+
+
 
 // --- COMPONENTS ---
 

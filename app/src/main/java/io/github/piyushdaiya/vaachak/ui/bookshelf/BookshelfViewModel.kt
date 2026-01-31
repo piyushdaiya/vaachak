@@ -35,16 +35,16 @@ class BookshelfViewModel @Inject constructor(
     val isEinkEnabled: StateFlow<Boolean> = settingsRepo.isEinkEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    // --- STATE: SNACKBAR (ERROR MESSAGES) ---
+    // NEW: Offline Mode State
+    val isOfflineModeEnabled: StateFlow<Boolean> = settingsRepo.isOfflineModeEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    // --- STATE: SNACKBAR ---
     private val _snackbarMessage = MutableStateFlow<String?>(null)
     val snackbarMessage = _snackbarMessage.asStateFlow()
+    fun clearSnackbarMessage() { _snackbarMessage.value = null }
 
-    // NEW: Helper to reset message after UI shows it
-    fun clearSnackbarMessage() {
-        _snackbarMessage.value = null
-    }
-
-    // --- STATE: BOOKS & SEARCH ---
+    // --- STATE: BOOKS ---
     val allBooks: StateFlow<List<BookEntity>> = bookDao.getAllBooksSortedByRecent()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -54,12 +54,9 @@ class BookshelfViewModel @Inject constructor(
     private val _sortOrder = MutableStateFlow(SortOrder.DATE_ADDED)
     val sortOrder = _sortOrder.asStateFlow()
 
-    // --- FILTERED LIBRARY ---
     val filteredLibraryBooks: StateFlow<List<BookEntity>> =
         combine(allBooks, searchQuery, _sortOrder) { books, query, order ->
-            val filtered = books.filter { book ->
-                book.progress <= 0.0 && book.title.contains(query, ignoreCase = true)
-            }
+            val filtered = books.filter { book -> book.progress <= 0.0 && book.title.contains(query, ignoreCase = true) }
             when (order) {
                 SortOrder.TITLE -> filtered.sortedBy { it.title }
                 SortOrder.AUTHOR -> filtered.sortedBy { it.author }
@@ -67,10 +64,8 @@ class BookshelfViewModel @Inject constructor(
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // --- HERO SECTION (Continue Reading) ---
     val recentBooks: StateFlow<List<BookEntity>> = allBooks.map { books ->
-        books.filter { it.progress > 0.0 }
-            .sortedByDescending { it.lastRead }
+        books.filter { it.progress > 0.0 }.sortedByDescending { it.lastRead }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // --- RECAP STATE ---
@@ -86,72 +81,54 @@ class BookshelfViewModel @Inject constructor(
 
     fun importBook(uri: Uri) {
         viewModelScope.launch {
-            // DUPLICATE CHECK
             if (allBooks.value.any { it.uriString == uri.toString() }) {
                 _snackbarMessage.value = "⚠️ Book is already in your library"
                 return@launch
             }
-            try {
-                val flags = android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
-                context.contentResolver.takePersistableUriPermission(uri, flags)
-            } catch (e: Exception) { /* ignore */ }
+            try { context.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (e: Exception) { }
 
             val publication = readiumManager.openEpubFromUri(uri)
             if (publication != null) {
                 val title = publication.metadata.title ?: "Unknown Title"
                 val author = publication.metadata.authors.firstOrNull()?.name ?: "Unknown Author"
-
                 var savedCoverPath: String? = null
                 try {
                     val bitmap = readiumManager.getPublicationCover(publication)
                     if (bitmap != null) savedCoverPath = saveCoverToInternalStorage(bitmap, title)
-                } catch (e: Exception) { /* ignore */ }
+                } catch (e: Exception) { }
 
-                val newBook = BookEntity(
-                    title = title,
-                    author = author,
-                    uriString = uri.toString(),
-                    coverPath = savedCoverPath,
-                    addedDate = System.currentTimeMillis(),
-                    lastRead = System.currentTimeMillis(),
-                    progress = 0.0
-                )
+                val newBook = BookEntity(title = title, author = author, uriString = uri.toString(), coverPath = savedCoverPath, addedDate = System.currentTimeMillis(), lastRead = System.currentTimeMillis(), progress = 0.0)
                 bookDao.insertBook(newBook)
                 readiumManager.closePublication()
                 _snackbarMessage.value = "Book added successfully"
-            } else {
-                _snackbarMessage.value = "Failed to parse book metadata"
-            }
+            } else { _snackbarMessage.value = "Failed to parse book metadata" }
         }
     }
 
     private fun saveCoverToInternalStorage(bitmap: Bitmap, title: String): String {
         val filename = "cover_${title.hashCode()}.png"
         val file = File(context.filesDir, filename)
-        FileOutputStream(file).use { out ->
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
-        }
+        FileOutputStream(file).use { out -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, out) }
         return file.absolutePath
     }
 
     fun deleteBook(id: Long) = viewModelScope.launch { bookDao.deleteBook(id) }
 
     fun getQuickRecap(book: BookEntity) {
+        // FAILSAFE: Block if Offline
+        if (isOfflineModeEnabled.value) {
+            _snackbarMessage.value = "Offline Mode enabled. Connect to use Recall."
+            return
+        }
         viewModelScope.launch {
             _isLoadingRecap.value = book.uriString
             try {
-                val contextHighlights = highlightDao.getHighlightsForBook(book.uriString)
-                    .first().take(10).joinToString("\n") { it.text }
-
+                val contextHighlights = highlightDao.getHighlightsForBook(book.uriString).first().take(10).joinToString("\n") { it.text }
                 val summary = aiRepository.getRecallSummary(book.title, contextHighlights)
                 _recapState.value = _recapState.value + (book.uriString to summary)
-            } finally {
-                _isLoadingRecap.value = null
-            }
+            } finally { _isLoadingRecap.value = null }
         }
     }
 
-    fun clearRecap(uri: String) {
-        _recapState.value = _recapState.value - uri
-    }
+    fun clearRecap(uri: String) { _recapState.value = _recapState.value - uri }
 }

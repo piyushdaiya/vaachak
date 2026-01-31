@@ -21,6 +21,11 @@ It seamlessly bridges traditional reading with advanced multimodal AI. By levera
 * **AI Integration**: Contextual "Explain," "Character Investigation," and "Visualize" actions powered by Gemini and Cloudflare Workers.
 * **Self-Healing AI Pipeline:** If the image generation API fails, the app automatically falls back to Gemini to provide a vivid text description instead.
 * **Secure API Configuration:** Bring Your Own Keys (BYOK). All API keys and endpoints are configured directly within the app's settings—no hardcoded secrets.
+* **Offline Mode (Distraction-Free Reading)**
+  * **Offline Toggle:** A new "Offline Mode" setting allows users to disable all network-dependent features.
+  * **Distraction-Free UI:** Automatically hides AI-powered buttons (Global Recall, Chapter Recap, "Ask AI") when offline mode is active.
+  * **Safety Failsafes:** Prevents accidental API calls when the device is disconnected or when the user explicitly requests privacy.
+  * **Persistent Settings:** AI configurations (API Keys) are preserved but inactive while in offline mode.
 * **Progress Tracking**: Automatic persistence of reading percentage and page numbers.
 * **Deep-Link Highlights**: Navigate directly to the exact page of a highlight from a centralized listing using Readium Locators.
   * Highlight Categorization: Add the ability to tag highlights (e.g., "Research," "Quotes," "Characters") and filter the Highlights by these tags.

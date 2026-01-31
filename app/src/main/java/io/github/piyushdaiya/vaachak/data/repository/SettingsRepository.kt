@@ -15,7 +15,7 @@ import javax.inject.Singleton
 @Singleton
 class SettingsRepository @Inject constructor(
     private val dataStore: DataStore<Preferences>,
-    @ApplicationContext private val context: Context // Added back for file checking
+    @ApplicationContext private val context: Context
 ) {
 
     // --- PREFERENCE KEYS ---
@@ -30,6 +30,9 @@ class SettingsRepository @Inject constructor(
 
         val DICTIONARY_FOLDER_KEY = stringPreferencesKey("dictionary_folder")
         val USE_EMBEDDED_DICT = booleanPreferencesKey("use_embedded_dict")
+
+        // NEW: Offline Mode Key
+        val OFFLINE_MODE_KEY = booleanPreferencesKey("offline_mode")
     }
 
     // --- READ FLOWS ---
@@ -44,6 +47,10 @@ class SettingsRepository @Inject constructor(
         val name = prefs[THEME_KEY] ?: ThemeMode.E_INK.name
         try { ThemeMode.valueOf(name) } catch (_: Exception) { ThemeMode.E_INK }
     }
+
+    // NEW: Offline Mode Flow
+    // FIX: Using 'dataStore' (injected) instead of 'context.dataStore'
+    val isOfflineModeEnabled: Flow<Boolean> = dataStore.data.map { it[OFFLINE_MODE_KEY] ?: false }
 
     // Dictionary Flows
     fun getUseEmbeddedDictionary(): Flow<Boolean> = dataStore.data.map { it[USE_EMBEDDED_DICT] ?: false }
@@ -83,6 +90,12 @@ class SettingsRepository @Inject constructor(
         dataStore.edit { it[DICTIONARY_FOLDER_KEY] = uri }
     }
 
+    // NEW: Offline Mode Write
+    suspend fun setOfflineMode(enabled: Boolean) {
+        // FIX: Using 'dataStore' (injected)
+        dataStore.edit { it[OFFLINE_MODE_KEY] = enabled }
+    }
+
     suspend fun clearSettings() {
         dataStore.edit { it.clear() }
     }
@@ -93,16 +106,24 @@ class SettingsRepository @Inject constructor(
             val uri = Uri.parse(uriString)
             val dir = DocumentFile.fromTreeUri(context, uri)
 
-            // 1. Check if folder allows access
             if (dir == null || !dir.isDirectory || !dir.canRead()) return false
 
-            // 2. Scan for at least one .idx file
-            // StarDict requires .idx (index), .ifo (info), and .dict (data)
-            // Finding an .idx is a strong enough indicator that this is the right folder.
             val files = dir.listFiles()
             files.any { it.name?.endsWith(".idx", ignoreCase = true) == true }
         } catch (e: Exception) {
             false
         }
     }
+
+    // Additional helpers from previous attempts removed as they are covered above
+    // (setGeminiKey, setCfUrl, setCfToken etc. are wrapped in saveSettings
+    // OR need separate funcs if SettingsViewModel calls them individually)
+
+    // Since SettingsViewModel uses individual updates, let's ensure they exist:
+    suspend fun setGeminiKey(key: String) { dataStore.edit { it[GEMINI_KEY] = key } }
+    suspend fun setCfUrl(url: String) { dataStore.edit { it[CF_URL] = url } }
+    suspend fun setCfToken(token: String) { dataStore.edit { it[CF_TOKEN] = token } }
+
+    // Reset all helper
+    suspend fun resetAll() { clearSettings() }
 }

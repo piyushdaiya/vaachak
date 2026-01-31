@@ -50,7 +50,7 @@ class SessionHistoryViewModel @Inject constructor(
 
                         val summary = aiRepository.getRecallSummary(
                             bookTitle = book.title,
-                            context = highlights
+                            highlightsContext = highlights
                         )
 
                         // Check setting before auto-saving

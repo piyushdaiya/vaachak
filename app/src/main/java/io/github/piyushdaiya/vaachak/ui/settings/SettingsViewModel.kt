@@ -4,15 +4,15 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.piyushdaiya.vaachak.data.repository.SettingsRepository
+import io.github.piyushdaiya.vaachak.ui.theme.ThemeMode
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
-import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
-import io.github.piyushdaiya.vaachak.ui.theme.ThemeMode
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
@@ -35,6 +35,10 @@ class SettingsViewModel @Inject constructor(
     private val _isAutoSaveRecapsEnabled = MutableStateFlow(true)
     val isAutoSaveRecapsEnabled = _isAutoSaveRecapsEnabled.asStateFlow()
 
+    // NEW: Offline Mode State
+    private val _isOfflineModeEnabled = MutableStateFlow(false)
+    val isOfflineModeEnabled = _isOfflineModeEnabled.asStateFlow()
+
     val themeMode: StateFlow<ThemeMode> = settingsRepo.themeMode
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ThemeMode.E_INK)
 
@@ -53,10 +57,11 @@ class SettingsViewModel @Inject constructor(
 
     private fun loadSettings() = viewModelScope.launch {
         _geminiKey.value = settingsRepo.geminiKey.first()
-        _cfUrl.value = settingsRepo.cfUrl.first() // Fixed: use public flow name
-        _cfToken.value = settingsRepo.cfToken.first() // Fixed: use public flow name
+        _cfUrl.value = settingsRepo.cfUrl.first()
+        _cfToken.value = settingsRepo.cfToken.first()
         _isEinkEnabled.value = settingsRepo.isEinkEnabled.first()
         _isAutoSaveRecapsEnabled.value = settingsRepo.isAutoSaveRecapsEnabled.first()
+        _isOfflineModeEnabled.value = settingsRepo.isOfflineModeEnabled.first() // Load Offline Mode
     }
 
     // --- UI UPDATERS ---
@@ -64,11 +69,8 @@ class SettingsViewModel @Inject constructor(
     fun updateCfUrl(valText: String) { _cfUrl.value = valText }
     fun updateCfToken(valText: String) { _cfToken.value = valText }
 
-
     fun updateTheme(mode: ThemeMode) = viewModelScope.launch {
         settingsRepo.setThemeMode(mode)
-        // 2. Sync the Boolean: If theme is E_INK, enable the flag automatically
-        // This fixes the "Dead Code" issue
         _isEinkEnabled.value = (mode == ThemeMode.E_INK)
     }
 
@@ -89,26 +91,26 @@ class SettingsViewModel @Inject constructor(
         settingsRepo.setDictionaryFolder(uri)
     }
 
+    // NEW: Toggle Offline Mode
+    fun toggleOfflineMode(enabled: Boolean) = viewModelScope.launch {
+        settingsRepo.setOfflineMode(enabled)
+        _isOfflineModeEnabled.value = enabled
+    }
+
     // --- SAVE LOGIC (WITH CONTENT VALIDATION) ---
     suspend fun saveSettings() {
         val isDictEnabled = useEmbeddedDictionary.value
         val dictPath = dictionaryFolder.value
 
         if (isDictEnabled) {
-            // 1. Basic Empty Check
             if (dictPath.isBlank()) {
                 throw Exception("Please select a folder for the External Dictionary.")
             }
-
-            // 2. Content Validation Check
-            // We verify if the folder actually contains StarDict files (.idx)
             val isValid = settingsRepo.validateStarDictFolder(dictPath)
             if (!isValid) {
-                throw Exception("Invalid Dictionary Folder: No StarDict files (.idx/.dict/.ifo) found in selected location.")
+                throw Exception("Invalid Dictionary Folder: No StarDict files (.idx/.dict/.ifo) found.")
             }
-
         } else {
-            // Cleanup if disabled
             if (dictPath.isNotEmpty()) {
                 settingsRepo.setDictionaryFolder("")
             }
@@ -129,5 +131,6 @@ class SettingsViewModel @Inject constructor(
         _cfToken.value = ""
         _isEinkEnabled.value = false
         _isAutoSaveRecapsEnabled.value = true
+        _isOfflineModeEnabled.value = false
     }
 }

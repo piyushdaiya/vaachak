@@ -86,10 +86,36 @@ class AiRepository @Inject constructor(
         }
     }
 
-    suspend fun getRecallSummary(bookTitle: String, context: String): String {
+        suspend fun getQuickRecap(bookTitle: String, context: String): String {
         return try {
-            val prompt = "Context: $context\nTask: 3-sentence summary for '$bookTitle'. No spoilers."
+            val prompt = """
+                I am reading book '$bookTitle'. And the current page text: "$context"
+                
+                Provide a quick 3-sentence recap of the plot leading up to this point and a brief 'Who's Who' of characters present in this specific scene.
+                STRICTLY avoid future plot spoilers.
+            """.trimIndent()
             getGeminiModel().generateContent(prompt).text ?: "Summary unavailable."
         } catch (e: Exception) { "Error: ${e.localizedMessage}" }
+    }
+
+    suspend fun getRecallSummary(
+        bookTitle: String,
+        highlightsContext: String
+    ): String {
+        return try {
+            val prompt = """
+                I am returning to read '$bookTitle'. 
+                
+                Based on my previous highlights:
+                "$highlightsContext"
+                               
+                Provide a quick 3-sentence recap of the plot leading up to this point and a brief 'Who's Who' of characters until now.
+                STRICTLY avoid future plot spoilers.
+            """.trimIndent()
+
+            getGeminiModel().generateContent(prompt).text ?: "Unable to generate recap."
+        } catch (e: Exception) {
+            "Error generating recap: ${e.localizedMessage}"
+        }
     }
 }
