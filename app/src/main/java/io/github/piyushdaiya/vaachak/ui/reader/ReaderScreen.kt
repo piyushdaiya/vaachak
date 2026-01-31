@@ -34,10 +34,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import io.github.piyushdaiya.vaachak.ui.reader.components.AiBottomSheet
 import io.github.piyushdaiya.vaachak.ui.reader.components.BookHighlightsOverlay
 import io.github.piyushdaiya.vaachak.ui.reader.components.BookSearchOverlay
+import io.github.piyushdaiya.vaachak.ui.reader.components.ReaderSettingsSheet
 import io.github.piyushdaiya.vaachak.ui.reader.components.ReaderSystemFooter
 import io.github.piyushdaiya.vaachak.ui.reader.components.ReaderTopBar
 import io.github.piyushdaiya.vaachak.ui.reader.components.TableOfContents
-import io.github.piyushdaiya.vaachak.ui.settings.SettingsScreen
 import kotlinx.coroutines.launch
 import org.readium.r2.navigator.DecorableNavigator
 import org.readium.r2.navigator.epub.EpubNavigatorFactory
@@ -45,6 +45,8 @@ import org.readium.r2.navigator.epub.EpubNavigatorFragment
 import org.readium.r2.shared.ExperimentalReadiumApi
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.util.AbsoluteUrl
+// --- FIX: Correct Import ---
+import org.readium.r2.navigator.epub.EpubPreferences
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalReadiumApi::class)
 @Composable
@@ -60,9 +62,14 @@ fun ReaderScreen(
     val publication by viewModel.publication.collectAsState()
     val isEink by viewModel.isEinkEnabled.collectAsState()
     val isOfflineMode by viewModel.isOfflineModeEnabled.collectAsState()
+    val isAiEnabled by viewModel.isAiEnabled.collectAsState()
 
     val showToc by viewModel.showToc.collectAsState()
     val currentLocator by viewModel.currentLocator.collectAsState()
+
+    val showReaderSettings by viewModel.showReaderSettings.collectAsState()
+    // Type is now known due to import
+    val epubPreferences by viewModel.epubPreferences.collectAsState()
 
     val showSearch by viewModel.showSearch.collectAsState()
     val bookSearchQuery by viewModel.bookSearchQuery.collectAsState()
@@ -76,7 +83,6 @@ fun ReaderScreen(
     val recapText by viewModel.recapText.collectAsState()
     val isRecapLoading by viewModel.isRecapLoading.collectAsState()
 
-    var showSettings by remember { mutableStateOf(false) }
     var showDeleteDialogId by remember { mutableStateOf<Long?>(null) }
     var isNavigatorReady by remember { mutableStateOf(false) }
 
@@ -117,6 +123,12 @@ fun ReaderScreen(
 
     LaunchedEffect(Unit) { viewModel.navigationEvent.collect { link -> currentNavigatorFragment?.go(link, animated = false) } }
     LaunchedEffect(Unit) { viewModel.jumpEvent.collect { locator -> currentNavigatorFragment?.go(locator, animated = false) } }
+
+    // Apply Preferences
+    LaunchedEffect(epubPreferences, currentNavigatorFragment) {
+        currentNavigatorFragment?.submitPreferences(epubPreferences)
+    }
+
     LaunchedEffect(savedHighlights, isNavigatorReady) {
         val navigator = currentNavigatorFragment ?: return@LaunchedEffect
         if (isNavigatorReady) navigator.applyDecorations(savedHighlights, "user_highlights")
@@ -138,7 +150,7 @@ fun ReaderScreen(
     BackHandler {
         if (showDeleteDialogId != null) showDeleteDialogId = null
         else if (showTagSelector) viewModel.dismissTagSelector()
-        else if (showSettings) showSettings = false
+        else if (showReaderSettings) viewModel.dismissReaderSettings()
         else if (showToc) viewModel.toggleToc()
         else if (showSearch) viewModel.toggleSearch()
         else if (showHighlights) viewModel.toggleHighlights()
@@ -178,10 +190,10 @@ fun ReaderScreen(
         }
     }
 
-    val aiSelectionCallback = remember(isOfflineMode) {
+    val aiSelectionCallback = remember(isAiEnabled) {
         object : ActionMode.Callback {
             override fun onCreateActionMode(mode: ActionMode?, menu: Menu?): Boolean {
-                if (!isOfflineMode) {
+                if (isAiEnabled) {
                     menu?.add(Menu.NONE, 101, 0, "Ask AI")
                     menu?.add(Menu.NONE, 103, 2, "Define")
                 }
@@ -212,20 +224,17 @@ fun ReaderScreen(
             ReaderTopBar(
                 bookTitle = publication?.metadata?.title ?: "Loading...",
                 isEink = isEink,
-
-                // FIXED: Pass the inverse of offline mode
-                showRecap = !isOfflineMode,
-
+                showRecap = isAiEnabled,
                 onBack = { viewModel.closeBook(); onBack() },
                 onTocClick = { viewModel.toggleToc() },
                 onSearchClick = { viewModel.toggleSearch() },
                 onHighlightsClick = { viewModel.toggleHighlights() },
                 onRecapClick = { viewModel.onRecapClicked() },
-                onSettingsClick = { showSettings = true }
+                onSettingsClick = { viewModel.toggleReaderSettings() }
             )
         },
         bottomBar = {
-            if (publication != null && !showSettings && !showToc && !showSearch && !showHighlights) {
+            if (publication != null && !showReaderSettings && !showToc && !showSearch && !showHighlights) {
                 ReaderSystemFooter(chapterTitle = pageInfo, isEink = isEink)
             }
         },
@@ -305,9 +314,13 @@ fun ReaderScreen(
                 }
             }
 
-            if (showSettings) {
+            if (showReaderSettings) {
                 Surface(modifier = Modifier.fillMaxSize().zIndex(10f)) {
-                    SettingsScreen(onBack = { showSettings = false })
+                    ReaderSettingsSheet(
+                        viewModel = viewModel,
+                        isEink = isEink,
+                        onDismiss = { viewModel.dismissReaderSettings() }
+                    )
                 }
             }
 
@@ -326,7 +339,7 @@ fun ReaderScreen(
     }
 }
 
-// FIX: Added the missing helper function
+// Helper Function
 @Composable
 fun TagSelectorDialog(
     onTagSelected: (String) -> Unit,

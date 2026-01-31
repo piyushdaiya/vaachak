@@ -3,7 +3,6 @@ package io.github.piyushdaiya.vaachak.ui.reader
 import android.content.Context
 import android.graphics.Color
 import android.net.Uri
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -19,6 +18,10 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import org.readium.r2.navigator.Decoration
+import org.readium.r2.navigator.epub.EpubPreferences
+import org.readium.r2.navigator.preferences.FontFamily
+import org.readium.r2.navigator.preferences.TextAlign
+import org.readium.r2.navigator.preferences.Theme
 import org.readium.r2.shared.ExperimentalReadiumApi
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
@@ -26,6 +29,7 @@ import org.readium.r2.shared.publication.Publication
 import org.readium.r2.shared.publication.services.search.SearchService
 import javax.inject.Inject
 
+//
 @OptIn(ExperimentalCoroutinesApi::class, ExperimentalReadiumApi::class, FlowPreview::class)
 @HiltViewModel
 class ReaderViewModel @Inject constructor(
@@ -41,11 +45,64 @@ class ReaderViewModel @Inject constructor(
     val isEinkEnabled: StateFlow<Boolean> = settingsRepo.isEinkEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    // NEW: Offline Mode
     val isOfflineModeEnabled: StateFlow<Boolean> = settingsRepo.isOfflineModeEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    // --- 2. READER STATE ---
+    private val _bookAiEnabled = MutableStateFlow(true)
+    val isAiEnabled: StateFlow<Boolean> = combine(isOfflineModeEnabled, _bookAiEnabled) { globalOffline, bookOverride ->
+        bookOverride
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+
+    // --- 2. READER PREFERENCES ---
+    val epubPreferences: StateFlow<EpubPreferences> = combine(
+        settingsRepo.readerTheme,
+        settingsRepo.readerFontFamily,
+        settingsRepo.readerFontSize,
+        settingsRepo.readerTextAlign,
+        settingsRepo.readerPublisherStyles,
+        settingsRepo.readerLetterSpacing,
+        settingsRepo.readerParaSpacing,
+        settingsRepo.readerMarginSide,
+        settingsRepo.readerMarginTop,
+        settingsRepo.readerMarginBottom
+    ) { params ->
+        val themeStr = params[0] as String
+        val fontStr = params[1] as? String
+        val fontSizeVal = params[2] as Double
+        val alignStr = params[3] as String
+        val pubStyles = params[4] as Boolean
+        val letterSp = params[5] as? Double
+        val paraSp = params[6] as? Double
+        val marginSide = params[7] as Double
+
+        val rTheme = when(themeStr) {
+            "dark" -> Theme.DARK
+            "sepia" -> Theme.SEPIA
+            else -> Theme.LIGHT
+        }
+
+        val rFont = fontStr?.let { FontFamily(it) }
+        val rAlign = when(alignStr) {
+            "left" -> TextAlign.LEFT
+            "justify" -> TextAlign.JUSTIFY
+            else -> TextAlign.START
+        }
+
+        EpubPreferences(
+            theme = rTheme,
+            fontSize = fontSizeVal,
+            publisherStyles = pubStyles,
+            fontFamily = if (!pubStyles) rFont else null,
+            textAlign = if (!pubStyles) rAlign else null,
+            letterSpacing = if (!pubStyles) letterSp else null,
+            paragraphSpacing = if (!pubStyles) paraSp else null,
+            pageMargins = if (!pubStyles) marginSide else null
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), EpubPreferences())
+
+
+    // --- 3. READER STATE ---
     private val _publication = MutableStateFlow<Publication?>(null)
     val publication: StateFlow<Publication?> = _publication.asStateFlow()
     private val _currentLocator = MutableStateFlow<Locator?>(null)
@@ -59,7 +116,10 @@ class ReaderViewModel @Inject constructor(
     private val _navigationEvent = MutableSharedFlow<Link>()
     val navigationEvent = _navigationEvent.asSharedFlow()
 
-    // --- SEARCH STATE ---
+    // --- OVERLAYS ---
+    private val _showReaderSettings = MutableStateFlow(false)
+    val showReaderSettings: StateFlow<Boolean> = _showReaderSettings.asStateFlow()
+
     private val _showSearch = MutableStateFlow(false)
     val showSearch: StateFlow<Boolean> = _showSearch.asStateFlow()
     private val _bookSearchQuery = MutableStateFlow("")
@@ -73,7 +133,6 @@ class ReaderViewModel @Inject constructor(
     private val _jumpEvent = MutableSharedFlow<Locator>()
     val jumpEvent = _jumpEvent.asSharedFlow()
 
-    // --- UI OVERLAY STATES ---
     private val _isBottomSheetVisible = MutableStateFlow(false)
     val isBottomSheetVisible = _isBottomSheetVisible.asStateFlow()
     private val _aiResponse = MutableStateFlow("")
@@ -87,7 +146,6 @@ class ReaderViewModel @Inject constructor(
     private val _showTagSelector = MutableStateFlow(false)
     val showTagSelector = _showTagSelector.asStateFlow()
 
-    // --- RECAP STATES ---
     private val _showRecapConfirmation = MutableStateFlow(false)
     val showRecapConfirmation: StateFlow<Boolean> = _showRecapConfirmation.asStateFlow()
     private val _recapText = MutableStateFlow<String?>(null)
@@ -103,6 +161,7 @@ class ReaderViewModel @Inject constructor(
     private var pendingJumpLocator: String? = null
     private var pendingHighlightLocator: Locator? = null
 
+    // Highlights Flow
     val currentBookHighlights: StateFlow<List<Decoration>> = combine(
         _publication.filterNotNull(),
         isEinkEnabled
@@ -120,12 +179,10 @@ class ReaderViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val bookmarksList: StateFlow<List<HighlightEntity>> = _publication.filterNotNull()
-        .flatMapLatest {
-            highlightDao.getHighlightsForBook(initialUri ?: "")
-        }
+        .flatMapLatest { highlightDao.getHighlightsForBook(initialUri ?: "") }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // --- METHODS ---
+    // --- INITIALIZATION ---
     fun setInitialLocation(json: String?) { this.pendingJumpLocator = json }
 
     fun onFileSelected(uri: Uri) {
@@ -136,6 +193,12 @@ class ReaderViewModel @Inject constructor(
         _showHighlights.value = false
         _recapText.value = null
         _showRecapConfirmation.value = false
+        _showReaderSettings.value = false
+
+        viewModelScope.launch {
+            val isGlobalOffline = settingsRepo.isOfflineModeEnabled.first()
+            _bookAiEnabled.value = !isGlobalOffline
+        }
 
         initialUri = uri.toString()
         viewModelScope.launch {
@@ -150,12 +213,46 @@ class ReaderViewModel @Inject constructor(
         }
     }
 
-    // --- RECAP LOGIC ---
+    // --- SETTINGS ACTIONS ---
+    fun toggleReaderSettings() { _showReaderSettings.value = !_showReaderSettings.value }
+    fun dismissReaderSettings() { _showReaderSettings.value = false }
+
+    fun toggleBookAi(enabled: Boolean) { _bookAiEnabled.value = enabled }
+
+    fun updateTheme(theme: String) = viewModelScope.launch { settingsRepo.updateReaderPreferences(theme = theme) }
+    fun updateFontFamily(font: String) = viewModelScope.launch { settingsRepo.updateReaderPreferences(fontFamily = font) }
+    fun updateFontSize(size: Double) = viewModelScope.launch { settingsRepo.updateReaderPreferences(fontSize = size) }
+    fun updatePublisherStyles(enabled: Boolean) = viewModelScope.launch { settingsRepo.updateReaderPreferences(publisherStyles = enabled) }
+    fun updateTextAlign(align: String) = viewModelScope.launch { settingsRepo.updateReaderPreferences(textAlign = align) }
+    fun updateLetterSpacing(value: Double) = viewModelScope.launch { settingsRepo.updateReaderPreferences(letterSpacing = value) }
+    fun updateParaSpacing(value: Double) = viewModelScope.launch { settingsRepo.updateReaderPreferences(paraSpacing = value) }
+    fun updateMarginSide(value: Double) = viewModelScope.launch { settingsRepo.updateReaderPreferences(marginSide = value) }
+    fun updateMarginTop(value: Double) = viewModelScope.launch { settingsRepo.updateReaderPreferences(marginTop = value) }
+    fun updateMarginBottom(value: Double) = viewModelScope.launch { settingsRepo.updateReaderPreferences(marginBottom = value) }
+
+    fun resetLayout() = viewModelScope.launch { settingsRepo.resetReaderLayout() }
+
+    // --- NEW: Save All Preferences (For "Save" button) ---
+    fun savePreferences(newPrefs: EpubPreferences) = viewModelScope.launch {
+        settingsRepo.updateReaderPreferences(
+            theme = newPrefs.theme?.toString()?.lowercase(),
+            fontFamily = newPrefs.fontFamily?.toString(),
+            fontSize = newPrefs.fontSize,
+            textAlign = newPrefs.textAlign?.toString()?.lowercase(),
+            publisherStyles = newPrefs.publisherStyles,
+            letterSpacing = newPrefs.letterSpacing,
+            paraSpacing = newPrefs.paragraphSpacing,
+            marginSide = newPrefs.pageMargins
+            // Add top/bottom here if your SettingsRepo implementation supports distinct keys
+        )
+    }
+
+    // --- RECAP & AI ACTIONS ---
     fun onRecapClicked() { _showRecapConfirmation.value = true }
     fun dismissRecapConfirmation() { _showRecapConfirmation.value = false }
 
     fun generateRecap() {
-        if (isOfflineModeEnabled.value) return // Block if offline
+        if (!_bookAiEnabled.value) return
         _showRecapConfirmation.value = false
         _isRecapLoading.value = true
 
@@ -183,15 +280,14 @@ class ReaderViewModel @Inject constructor(
                 tag = "recap"
             )
             highlightDao.insertHighlight(highlight)
-
             _recapText.value = null
             _snackbarMessage.value = "Recap saved to highlights."
         }
     }
-
     fun dismissRecapResult() { _recapText.value = null }
 
-    // ... (Existing Navigation & Helper Methods) ...
+
+    // --- NAVIGATION ---
     fun toggleToc() { _showToc.value = !_showToc.value }
     fun onTocItemSelected(link: Link) {
         val currentHref = _currentLocator.value?.href.toString().substringBefore('#')
@@ -224,6 +320,7 @@ class ReaderViewModel @Inject constructor(
             } catch(e:Exception){ _snackbarMessage.value = e.message } finally { _isBookSearching.value = false }
         }
     }
+
     fun onSearchResultClicked(l: Locator) { viewModelScope.launch { _showSearch.value=false; _jumpEvent.emit(l); _bookSearchQuery.value=""; _searchResults.value=emptyList() } }
     fun onHighlightClicked(h: HighlightEntity) { viewModelScope.launch { try{ val l=Locator.fromJSON(JSONObject(h.locatorJson)); if(l!=null){ _showHighlights.value=false; _jumpEvent.emit(l) } }catch(e:Exception){} } }
     fun updateProgress(l: Locator) {
@@ -239,13 +336,7 @@ class ReaderViewModel @Inject constructor(
         val l = pendingHighlightLocator?:return; val u = initialUri?:return; val e = isEinkEnabled.value
         viewModelScope.launch {
             highlightDao.insertHighlight(
-                HighlightEntity(
-                    publicationId = u,
-                    locatorJson = l.toJSON().toString(),
-                    text = l.text.highlight?:"Selected",
-                    color = if(e) Color.DKGRAY else Color.YELLOW,
-                    tag = tag
-                )
+                HighlightEntity(publicationId = u, locatorJson = l.toJSON().toString(), text = l.text.highlight?:"Selected", color = if(e) Color.DKGRAY else Color.YELLOW, tag = tag)
             )
             dismissTagSelector()
         }
@@ -254,20 +345,18 @@ class ReaderViewModel @Inject constructor(
     fun dismissTagSelector() { _showTagSelector.value = false; pendingHighlightLocator = null }
     fun onTextSelected(t: String) { currentSelectedText = t; _isBottomSheetVisible.value = true }
 
-    // FAILSAFE: Block AI if Offline
     fun onActionExplain() {
-        if (isOfflineModeEnabled.value) return
+        if (!_bookAiEnabled.value) return
         viewModelScope.launch { performAiAction("Thinking...") { aiRepository.explainContext(currentSelectedText) } }
     }
     fun onActionWhoIsThis() {
-        if (isOfflineModeEnabled.value) return
+        if (!_bookAiEnabled.value) return
         viewModelScope.launch { performAiAction("Investigating...") { aiRepository.whoIsThis(currentSelectedText, _publication.value?.metadata?.title?:"", "") } }
     }
     fun onActionVisualize() {
-        if (isOfflineModeEnabled.value) return
+        if (!_bookAiEnabled.value) return
         viewModelScope.launch { performAiAction("Drawing...") { aiRepository.visualizeText(currentSelectedText) }; _isImageResponse.value = true }
     }
-
     private suspend fun performAiAction(m: String, a: suspend () -> String) { _aiResponse.value = m; try { _aiResponse.value = a() } catch(e:Exception){ _aiResponse.value = e.message?:"" } }
     fun lookupWord(w: String, c: Context) { /* ... */ }
     fun dismissRecap() { _recapText.value = null }
