@@ -74,6 +74,8 @@ Vaachak is built using **Modern Android Development (MAD)** standards and **Clea
 3.  Copy the key. You will enter this in the app settings later.
 
 #### B. Setup Cloudflare Worker (For Visualize)
+**📺 Video Reference:**
+For a visual guide on setting up the Cloudflare environment, refer to **[Code With Nomi's Guide](https://www.youtube.com/watch?v=ZSHEL1EUQuE)**.
 To enable the "Visualize" feature, you need a free Cloudflare Worker to act as a proxy for the Stable Diffusion model.
 
 1.  **Create Worker:** Log in to [Cloudflare Dashboard](https://dash.cloudflare.com/) > Compute (Workers) > Create Application > "Hello World" script. Name it `vaachak-art`.
@@ -134,6 +136,8 @@ export default {
 Pre-compiled APKs for the **v2.0 Release** can be downloaded directly from GitHub:
 
 👉 **[Download Vaachak v2.0](https://github.com/piyushdaiya/vaachak/releases/tag/v2.0)**
+
+Need help installing? 📲 Read the [Installation Instructions](install_instructions.md)
 
 ## 📄 License & Attribution
 
