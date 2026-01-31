@@ -51,7 +51,11 @@ import org.readium.r2.shared.publication.Publication
 import org.readium.r2.shared.publication.services.search.SearchService
 import javax.inject.Inject
 
-//
+/**
+ * ViewModel for the Reader screen.
+ * Manages the state of the e-book reader, including loading publications,
+ * handling navigation, managing settings, and interacting with AI features.
+ */
 @OptIn(ExperimentalCoroutinesApi::class, ExperimentalReadiumApi::class, FlowPreview::class)
 @HiltViewModel
 class ReaderViewModel @Inject constructor(
@@ -205,8 +209,20 @@ class ReaderViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // --- INITIALIZATION ---
+
+    /**
+     * Sets the initial location for the book to open at.
+     *
+     * @param json The JSON string representation of the Locator.
+     */
     fun setInitialLocation(json: String?) { this.pendingJumpLocator = json }
 
+    /**
+     * Called when a file is selected to be opened.
+     * Initializes the book, loads preferences, and sets up the initial state.
+     *
+     * @param uri The URI of the selected file.
+     */
     fun onFileSelected(uri: Uri) {
         _bookSearchQuery.value = ""
         _searchResults.value = emptyList()
@@ -236,25 +252,106 @@ class ReaderViewModel @Inject constructor(
     }
 
     // --- SETTINGS ACTIONS ---
+
+    /**
+     * Toggles the visibility of the reader settings overlay.
+     */
     fun toggleReaderSettings() { _showReaderSettings.value = !_showReaderSettings.value }
+
+    /**
+     * Dismisses the reader settings overlay.
+     */
     fun dismissReaderSettings() { _showReaderSettings.value = false }
 
+    /**
+     * Toggles the AI features for the current book.
+     *
+     * @param enabled True to enable AI features, false otherwise.
+     */
     fun toggleBookAi(enabled: Boolean) { _bookAiEnabled.value = enabled }
 
+    /**
+     * Updates the reader theme.
+     *
+     * @param theme The new theme identifier (e.g., "dark", "sepia", "light").
+     */
     fun updateTheme(theme: String) = viewModelScope.launch { settingsRepo.updateReaderPreferences(theme = theme) }
+
+    /**
+     * Updates the font family used in the reader.
+     *
+     * @param font The name of the font family.
+     */
     fun updateFontFamily(font: String) = viewModelScope.launch { settingsRepo.updateReaderPreferences(fontFamily = font) }
+
+    /**
+     * Updates the font size.
+     *
+     * @param size The new font size.
+     */
     fun updateFontSize(size: Double) = viewModelScope.launch { settingsRepo.updateReaderPreferences(fontSize = size) }
+
+    /**
+     * Updates whether publisher styles should be respected.
+     *
+     * @param enabled True to use publisher styles, false to override them.
+     */
     fun updatePublisherStyles(enabled: Boolean) = viewModelScope.launch { settingsRepo.updateReaderPreferences(publisherStyles = enabled) }
+
+    /**
+     * Updates the text alignment.
+     *
+     * @param align The alignment type (e.g., "left", "justify").
+     */
     fun updateTextAlign(align: String) = viewModelScope.launch { settingsRepo.updateReaderPreferences(textAlign = align) }
+
+    /**
+     * Updates the letter spacing.
+     *
+     * @param value The new letter spacing value.
+     */
     fun updateLetterSpacing(value: Double) = viewModelScope.launch { settingsRepo.updateReaderPreferences(letterSpacing = value) }
+
+    /**
+     * Updates the paragraph spacing.
+     *
+     * @param value The new paragraph spacing value.
+     */
     fun updateParaSpacing(value: Double) = viewModelScope.launch { settingsRepo.updateReaderPreferences(paraSpacing = value) }
+
+    /**
+     * Updates the side margin.
+     *
+     * @param value The new side margin value.
+     */
     fun updateMarginSide(value: Double) = viewModelScope.launch { settingsRepo.updateReaderPreferences(marginSide = value) }
+
+    /**
+     * Updates the top margin.
+     *
+     * @param value The new top margin value.
+     */
     fun updateMarginTop(value: Double) = viewModelScope.launch { settingsRepo.updateReaderPreferences(marginTop = value) }
+
+    /**
+     * Updates the bottom margin.
+     *
+     * @param value The new bottom margin value.
+     */
     fun updateMarginBottom(value: Double) = viewModelScope.launch { settingsRepo.updateReaderPreferences(marginBottom = value) }
 
+    /**
+     * Resets the reader layout to default settings.
+     */
     fun resetLayout() = viewModelScope.launch { settingsRepo.resetReaderLayout() }
 
     // --- NEW: Save All Preferences (For "Save" button) ---
+
+    /**
+     * Saves all reader preferences at once.
+     *
+     * @param newPrefs The new EpubPreferences object containing the settings to save.
+     */
     fun savePreferences(newPrefs: EpubPreferences) = viewModelScope.launch {
         settingsRepo.updateReaderPreferences(
             theme = newPrefs.theme?.toString()?.lowercase(),
@@ -270,9 +367,20 @@ class ReaderViewModel @Inject constructor(
     }
 
     // --- RECAP & AI ACTIONS ---
+
+    /**
+     * Shows the confirmation dialog for generating a recap.
+     */
     fun onRecapClicked() { _showRecapConfirmation.value = true }
+
+    /**
+     * Dismisses the recap confirmation dialog.
+     */
     fun dismissRecapConfirmation() { _showRecapConfirmation.value = false }
 
+    /**
+     * Generates a quick recap of the current book context using AI.
+     */
     fun generateRecap() {
         if (!_bookAiEnabled.value) return
         _showRecapConfirmation.value = false
@@ -287,6 +395,9 @@ class ReaderViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Saves the generated recap as a highlight in the book.
+     */
     fun saveRecapAsHighlight() {
         val summary = _recapText.value ?: return
         val currentUri = initialUri ?: return
@@ -306,11 +417,25 @@ class ReaderViewModel @Inject constructor(
             _snackbarMessage.value = "Recap saved to highlights."
         }
     }
+
+    /**
+     * Dismisses the recap result.
+     */
     fun dismissRecapResult() { _recapText.value = null }
 
 
     // --- NAVIGATION ---
+
+    /**
+     * Toggles the visibility of the Table of Contents (TOC).
+     */
     fun toggleToc() { _showToc.value = !_showToc.value }
+
+    /**
+     * Handles selection of an item from the Table of Contents.
+     *
+     * @param link The link associated with the selected TOC item.
+     */
     fun onTocItemSelected(link: Link) {
         val currentHref = _currentLocator.value?.href.toString().substringBefore('#')
         val linkHref = link.href.toString().substringBefore('#')
@@ -321,9 +446,22 @@ class ReaderViewModel @Inject constructor(
             _showToc.value = false
         }
     }
+
+    /**
+     * Toggles the visibility of the search interface.
+     */
     fun toggleSearch() { if (_showSearch.value) { _bookSearchQuery.value = ""; _searchResults.value = emptyList() }; _showSearch.value = !_showSearch.value }
+
+    /**
+     * Toggles the visibility of the highlights list.
+     */
     fun toggleHighlights() { _showHighlights.value = !_showHighlights.value }
 
+    /**
+     * Searches for a query string within the book.
+     *
+     * @param query The text to search for.
+     */
     fun searchInBook(query: String) {
         val pub = _publication.value ?: return
         val sanitized = query.filter { !it.isISOControl() }.trim()
@@ -343,8 +481,25 @@ class ReaderViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Handles clicking on a search result.
+     *
+     * @param l The locator of the search result.
+     */
     fun onSearchResultClicked(l: Locator) { viewModelScope.launch { _showSearch.value=false; _jumpEvent.emit(l); _bookSearchQuery.value=""; _searchResults.value=emptyList() } }
+
+    /**
+     * Handles clicking on a highlight.
+     *
+     * @param h The highlight entity clicked.
+     */
     fun onHighlightClicked(h: HighlightEntity) { viewModelScope.launch { try{ val l=Locator.fromJSON(JSONObject(h.locatorJson)); if(l!=null){ _showHighlights.value=false; _jumpEvent.emit(l) } }catch(e:Exception){} } }
+
+    /**
+     * Updates the current reading progress.
+     *
+     * @param l The current locator.
+     */
     fun updateProgress(l: Locator) {
         _currentLocator.value = l
         val pos = l.locations.position?:0; val prog = l.locations.totalProgression?:0.0; val pct = (prog*100).toInt()
@@ -352,8 +507,24 @@ class ReaderViewModel @Inject constructor(
         val u = initialUri?:return
         viewModelScope.launch { bookDao.updateLastLocation(u, l.toJSON().toString()); bookDao.updateProgress(u, prog) }
     }
+
+    /**
+     * Closes the current book and resets state.
+     */
     fun closeBook() { viewModelScope.launch { readiumManager.closePublication(); _publication.value=null; _currentLocator.value=null; _bookSearchQuery.value=""; _searchResults.value=emptyList(); _showHighlights.value=false } }
+
+    /**
+     * Prepares to add a highlight at the specified locator.
+     *
+     * @param l The locator where the highlight should be added.
+     */
     fun prepareHighlight(l: Locator) { pendingHighlightLocator = l; _showTagSelector.value = true }
+
+    /**
+     * Saves the pending highlight with the selected tag.
+     *
+     * @param tag The tag to associate with the highlight.
+     */
     fun saveHighlightWithTag(tag: String) {
         val l = pendingHighlightLocator?:return; val u = initialUri?:return; val e = isEinkEnabled.value
         viewModelScope.launch {
@@ -363,25 +534,72 @@ class ReaderViewModel @Inject constructor(
             dismissTagSelector()
         }
     }
+
+    /**
+     * Deletes a highlight by its ID.
+     *
+     * @param id The ID of the highlight to delete.
+     */
     fun deleteHighlight(id: Long) { viewModelScope.launch { highlightDao.deleteHighlightById(id) } }
+
+    /**
+     * Dismisses the tag selector dialog.
+     */
     fun dismissTagSelector() { _showTagSelector.value = false; pendingHighlightLocator = null }
+
+    /**
+     * Handles text selection in the reader.
+     *
+     * @param t The selected text.
+     */
     fun onTextSelected(t: String) { currentSelectedText = t; _isBottomSheetVisible.value = true }
 
+    /**
+     * Triggers the "Explain" AI action for the selected text.
+     */
     fun onActionExplain() {
         if (!_bookAiEnabled.value) return
         viewModelScope.launch { performAiAction("Thinking...") { aiRepository.explainContext(currentSelectedText) } }
     }
+
+    /**
+     * Triggers the "Who is this?" AI action for the selected text.
+     */
     fun onActionWhoIsThis() {
         if (!_bookAiEnabled.value) return
         viewModelScope.launch { performAiAction("Investigating...") { aiRepository.whoIsThis(currentSelectedText, _publication.value?.metadata?.title?:"", "") } }
     }
+
+    /**
+     * Triggers the "Visualize" AI action for the selected text.
+     */
     fun onActionVisualize() {
         if (!_bookAiEnabled.value) return
         viewModelScope.launch { performAiAction("Drawing...") { aiRepository.visualizeText(currentSelectedText) }; _isImageResponse.value = true }
     }
+
     private suspend fun performAiAction(m: String, a: suspend () -> String) { _aiResponse.value = m; try { _aiResponse.value = a() } catch(e:Exception){ _aiResponse.value = e.message?:"" } }
+
+    /**
+     * Looks up a word in the dictionary.
+     *
+     * @param w The word to lookup.
+     * @param c The context.
+     */
     fun lookupWord(w: String, c: Context) { /* ... */ }
+
+    /**
+     * Dismisses the recap view.
+     */
     fun dismissRecap() { _recapText.value = null }
+
+    /**
+     * Dismisses the bottom sheet.
+     */
     fun dismissBottomSheet() { _isBottomSheetVisible.value = false }
+
+    /**
+     * Clears the current snackbar message.
+     */
     fun clearSnackbar() { _snackbarMessage.value = null }
 }

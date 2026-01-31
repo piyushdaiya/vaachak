@@ -36,6 +36,10 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/**
+ * ViewModel for the Settings screen.
+ * Manages application-wide settings such as API keys, theme preferences, and dictionary configuration.
+ */
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val settingsRepo: SettingsRepository
@@ -43,33 +47,63 @@ class SettingsViewModel @Inject constructor(
 
     // --- STATE FLOWS ---
     private val _geminiKey = MutableStateFlow("")
+    /**
+     * The current Gemini API key.
+     */
     val geminiKey = _geminiKey.asStateFlow()
 
     private val _cfUrl = MutableStateFlow("")
+    /**
+     * The current Cloudflare Worker URL.
+     */
     val cfUrl = _cfUrl.asStateFlow()
 
     private val _cfToken = MutableStateFlow("")
+    /**
+     * The current Cloudflare API token.
+     */
     val cfToken = _cfToken.asStateFlow()
 
     private val _isEinkEnabled = MutableStateFlow(false)
+    /**
+     * Indicates if E-ink optimization is enabled.
+     */
     val isEinkEnabled = _isEinkEnabled.asStateFlow()
 
     private val _isAutoSaveRecapsEnabled = MutableStateFlow(true)
+    /**
+     * Indicates if generated recaps should be automatically saved as highlights.
+     */
     val isAutoSaveRecapsEnabled = _isAutoSaveRecapsEnabled.asStateFlow()
 
     // NEW: Offline Mode State
     private val _isOfflineModeEnabled = MutableStateFlow(false)
+    /**
+     * Indicates if offline mode is enabled (disabling AI features).
+     */
     val isOfflineModeEnabled = _isOfflineModeEnabled.asStateFlow()
 
+    /**
+     * The current theme mode of the application.
+     */
     val themeMode: StateFlow<ThemeMode> = settingsRepo.themeMode
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ThemeMode.E_INK)
 
+    /**
+     * The contrast level for E-ink mode.
+     */
     val einkContrast: StateFlow<Float> = settingsRepo.einkContrast
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.5f)
 
+    /**
+     * Indicates if an embedded dictionary (StarDict) is used.
+     */
     val useEmbeddedDictionary: StateFlow<Boolean> = settingsRepo.getUseEmbeddedDictionary()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
+    /**
+     * The URI string of the folder containing dictionary files.
+     */
     val dictionaryFolder: StateFlow<String> = settingsRepo.getDictionaryFolder()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
 
@@ -87,39 +121,94 @@ class SettingsViewModel @Inject constructor(
     }
 
     // --- UI UPDATERS ---
+
+    /**
+     * Updates the Gemini API key in the UI state.
+     *
+     * @param valText The new API key.
+     */
     fun updateGemini(valText: String) { _geminiKey.value = valText }
+
+    /**
+     * Updates the Cloudflare URL in the UI state.
+     *
+     * @param valText The new URL.
+     */
     fun updateCfUrl(valText: String) { _cfUrl.value = valText }
+
+    /**
+     * Updates the Cloudflare token in the UI state.
+     *
+     * @param valText The new token.
+     */
     fun updateCfToken(valText: String) { _cfToken.value = valText }
 
+    /**
+     * Updates the application theme mode.
+     *
+     * @param mode The new [ThemeMode].
+     */
     fun updateTheme(mode: ThemeMode) = viewModelScope.launch {
         settingsRepo.setThemeMode(mode)
         _isEinkEnabled.value = (mode == ThemeMode.E_INK)
     }
 
+    /**
+     * Updates the contrast level for E-ink mode.
+     *
+     * @param newContrast The new contrast value (0.0 to 1.0).
+     */
     fun updateContrast(newContrast: Float) = viewModelScope.launch {
         settingsRepo.setContrast(newContrast)
     }
 
+    /**
+     * Toggles the auto-save feature for recaps.
+     *
+     * @param enabled True to enable auto-save, false otherwise.
+     */
     fun toggleAutoSaveRecaps(enabled: Boolean) = viewModelScope.launch {
         settingsRepo.setAutoSaveRecaps(enabled)
         _isAutoSaveRecapsEnabled.value = enabled
     }
 
+    /**
+     * Toggles the use of an embedded dictionary.
+     *
+     * @param enabled True to use embedded dictionary, false otherwise.
+     */
     fun toggleEmbeddedDictionary(enabled: Boolean) = viewModelScope.launch {
         settingsRepo.setUseEmbeddedDictionary(enabled)
     }
 
+    /**
+     * Updates the folder path for the embedded dictionary.
+     *
+     * @param uri The URI string of the folder.
+     */
     fun updateDictionaryFolder(uri: String) = viewModelScope.launch {
         settingsRepo.setDictionaryFolder(uri)
     }
 
     // NEW: Toggle Offline Mode
+    /**
+     * Toggles offline mode.
+     *
+     * @param enabled True to enable offline mode, false otherwise.
+     */
     fun toggleOfflineMode(enabled: Boolean) = viewModelScope.launch {
         settingsRepo.setOfflineMode(enabled)
         _isOfflineModeEnabled.value = enabled
     }
 
     // --- SAVE LOGIC (WITH CONTENT VALIDATION) ---
+
+    /**
+     * Saves the current settings to the repository.
+     * Validates the dictionary folder if embedded dictionary is enabled.
+     *
+     * @throws Exception If validation fails (e.g., invalid dictionary folder).
+     */
     suspend fun saveSettings() {
         val isDictEnabled = useEmbeddedDictionary.value
         val dictPath = dictionaryFolder.value
@@ -146,6 +235,9 @@ class SettingsViewModel @Inject constructor(
         )
     }
 
+    /**
+     * Resets all settings to their default values.
+     */
     fun resetSettings() = viewModelScope.launch {
         settingsRepo.clearSettings()
         _geminiKey.value = ""

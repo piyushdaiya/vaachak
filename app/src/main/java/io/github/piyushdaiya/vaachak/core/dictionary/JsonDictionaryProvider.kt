@@ -35,6 +35,10 @@ import kotlinx.serialization.json.jsonPrimitive
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * A dictionary provider that performs lookups using local JSON assets.
+ * It loads dictionary data and inflection mappings from assets to provide definitions.
+ */
 @Singleton
 class JsonDictionaryProvider @Inject constructor(
     @ApplicationContext private val context: Context
@@ -55,6 +59,14 @@ class JsonDictionaryProvider @Inject constructor(
             true
         }
     }
+
+    /**
+     * Looks up the definition of a word.
+     * It handles word cleaning, lemma lookup (inflection handling), and formatting of the definition.
+     *
+     * @param word The word to look up.
+     * @return The formatted definition of the word, or null if not found.
+     */
     override suspend fun lookup(word: String): String? = withContext(Dispatchers.IO) {
         try {
             ensureLoaded()

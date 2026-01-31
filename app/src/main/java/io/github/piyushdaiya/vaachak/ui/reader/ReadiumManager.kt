@@ -40,6 +40,10 @@ import java.io.FileOutputStream
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * Manages the lifecycle and operations of Readium publications.
+ * Handles opening, closing, and retrieving metadata/assets from e-books.
+ */
 @Singleton
 class ReadiumManager @Inject constructor(
     @ApplicationContext private val context: Context
@@ -59,6 +63,13 @@ class ReadiumManager @Inject constructor(
     private val _publication = MutableStateFlow<Publication?>(null)
     val publication = _publication.asStateFlow()
 
+    /**
+     * Opens an EPUB publication from a given URI.
+     * Caches the file locally to optimize subsequent opens.
+     *
+     * @param uri The URI of the EPUB file to open.
+     * @return The opened [Publication] object, or null if opening failed.
+     */
     suspend fun openEpubFromUri(uri: Uri): Publication? {
         return try {
             // OPTIMIZATION: Use a hashed filename based on URI to cache book
@@ -91,11 +102,20 @@ class ReadiumManager @Inject constructor(
         }
     }
 
+    /**
+     * Closes the currently open publication and releases resources.
+     */
     fun closePublication() {
         _publication.value?.close()
         _publication.value = null
     }
 
+    /**
+     * Retrieves the cover image of a publication.
+     *
+     * @param publication The publication to retrieve the cover from.
+     * @return The cover [Bitmap], or null if not available.
+     */
     suspend fun getPublicationCover(publication: Publication): Bitmap? {
         return try {
             publication.cover()

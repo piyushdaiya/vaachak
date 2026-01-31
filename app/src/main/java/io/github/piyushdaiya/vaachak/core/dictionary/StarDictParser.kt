@@ -34,6 +34,10 @@ import java.io.BufferedInputStream
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * Parses and queries StarDict dictionary files.
+ * Supports .ifo, .idx, and .dict (including compressed .dict.dz) files.
+ */
 @Singleton
 class StarDictParser @Inject constructor(
     @ApplicationContext private val context: Context
@@ -97,6 +101,10 @@ class StarDictParser @Inject constructor(
 
     /**
      * Core lookup function: iterates through all local dictionaries.
+     *
+     * @param folderUriString The URI of the folder containing dictionary files.
+     * @param word The word to look up.
+     * @return The definition of the word, or null if not found.
      */
     suspend fun lookup(folderUriString: String, word: String): String? = withContext(Dispatchers.IO) {
         ensureDictionariesLoaded(folderUriString)
