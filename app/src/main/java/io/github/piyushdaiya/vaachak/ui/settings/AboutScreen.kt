@@ -1,23 +1,23 @@
 /*
- *  Copyright (c) 2026 Piyush Daiya
- *  *
- *  * Permission is hereby granted, free of charge, to any person obtaining a copy
- *  * of this software and associated documentation files (the "Software"), to deal
- *  * in the Software without restriction, including without limitation the rights
- *  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- *  * copies of the Software, and to permit persons to whom the Software is
- *  * furnished to do so, subject to the following conditions:
- *  *
- *  * The above copyright notice and this permission notice shall be included in all
- *  * copies or substantial portions of the Software.
- *  *
- *  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- *  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- *  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- *  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- *  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- *  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- *  * SOFTWARE.
+ * Copyright (c) 2026 Piyush Daiya
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * * of this software and associated documentation files (the "Software"), to deal
+ * * in the Software without restriction, including without limitation the rights
+ * * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * * copies of the Software, and to permit persons to whom the Software is
+ * * furnished to do so, subject to the following conditions:
+ * *
+ * * The above copyright notice and this permission notice shall be included in all
+ * * copies or substantial portions of the Software.
+ * *
+ * * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * * SOFTWARE.
  */
 
 package io.github.piyushdaiya.vaachak.ui.settings
@@ -66,7 +66,10 @@ fun AboutScreen(
         ) {
             // 1. APP INFO
             Text("Vaachak", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-            Text("Version 1.2.0 (Stable)", fontSize = 14.sp, color = Color.Gray)
+
+            // --- UPDATED: Version 2.0 ---
+            Text("Version 2.0.0 (Stable)", fontSize = 14.sp, color = Color.Gray)
+
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 "An AI-powered E-Reader built for the modern age. Read, highlight, and explore your books with the power of Gemini and Cloudflare.",
@@ -87,18 +90,25 @@ fun AboutScreen(
             )
             Spacer(modifier = Modifier.height(16.dp))
 
-            // READIUM LICENSE (MANDATORY)
+            // --- VAACHAK LICENSE (MIT) ---
+            LicenseItem(
+                library = "Vaachak (This Software)",
+                license = """
+                    Copyright (c) 2026 Piyush Daiya.
+                    Licensed under the MIT License.
+                    
+                    Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files...
+                """.trimIndent()
+            )
+
+            // READIUM LICENSE (MANDATORY BSD-3)
             LicenseItem(
                 library = "Readium Kotlin Toolkit",
                 license = """
                     Copyright (c) 2018-2024, EDRLab. All rights reserved.
+                    Licensed under the BSD 3-Clause License.
                     
-                    Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
-                    1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
-                    2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
-                    3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
-                    
-                    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES... (See full BSD-3 Clause)
+                    Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met...
                 """.trimIndent()
             )
 
@@ -123,9 +133,20 @@ fun AboutScreen(
                 license = "Copyright (C) 2020 The Dagger Authors. Licensed under the Apache License, Version 2.0."
             )
 
+            // --- NEW: Coil & Room ---
+            LicenseItem(
+                library = "Coil (Image Loading)",
+                license = "Copyright 2023 Coil Contributors. Licensed under the Apache License, Version 2.0."
+            )
+
+            LicenseItem(
+                library = "Room Database",
+                license = "Licensed under the Apache License, Version 2.0."
+            )
+
             Spacer(modifier = Modifier.height(32.dp))
             Text(
-                "Built with ❤️ by Piyush Daiya",
+                "Built with Google Gemini by Piyush Daiya",
                 fontSize = 12.sp,
                 color = Color.LightGray
             )
@@ -142,4 +163,3 @@ fun LicenseItem(library: String, license: String) {
         Text(license, fontSize = 12.sp, color = Color.Gray)
     }
 }
-
