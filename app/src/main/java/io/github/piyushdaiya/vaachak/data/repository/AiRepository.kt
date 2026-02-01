@@ -1,3 +1,25 @@
+/*
+ *  Copyright (c) 2026 Piyush Daiya
+ *  *
+ *  * Permission is hereby granted, free of charge, to any person obtaining a copy
+ *  * of this software and associated documentation files (the "Software"), to deal
+ *  * in the Software without restriction, including without limitation the rights
+ *  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ *  * copies of the Software, and to permit persons to whom the Software is
+ *  * furnished to do so, subject to the following conditions:
+ *  *
+ *  * The above copyright notice and this permission notice shall be included in all
+ *  * copies or substantial portions of the Software.
+ *  *
+ *  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ *  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ *  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ *  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ *  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ *  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ *  * SOFTWARE.
+ */
+
 package io.github.piyushdaiya.vaachak.data.repository
 
 import android.util.Base64
@@ -6,7 +28,6 @@ import io.github.piyushdaiya.vaachak.data.api.CloudflareAiApi
 import io.github.piyushdaiya.vaachak.data.model.AiImageRequest
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
-import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -40,8 +61,10 @@ class AiRepository @Inject constructor(
     }
 
     suspend fun explainContext(selectedText: String): String {
+
         return try {
             val prompt = "Provide a simple, 2-sentence explanation for: $selectedText"
+
             getGeminiModel().generateContent(prompt).text ?: "No explanation."
         } catch (e: Exception) { "Error: ${e.localizedMessage}" }
     }
@@ -74,7 +97,8 @@ class AiRepository @Inject constructor(
             if (response.isSuccessful) {
                 val bytes = response.body()?.bytes()
                 if (bytes != null) {
-                    "BASE64_IMAGE:${Base64.encodeToString(bytes, Base64.DEFAULT)}"
+                    //"BASE64_IMAGE:${Base64.encodeToString(bytes, Base64.DEFAULT)}"
+                    "${Base64.encodeToString(bytes, Base64.DEFAULT)}"
                 } else "Empty Body"
             } else {
                 "Cloudflare Error: ${response.code()}"
@@ -83,6 +107,31 @@ class AiRepository @Inject constructor(
             "Timeout: Cloudflare took >30s. Try again."
         } catch (e: Exception) {
             "Error: ${e.localizedMessage}"
+        }
+    }
+
+    suspend fun generateRecap(
+        bookTitle: String,
+        highlightsContext: String,
+        currentPageText: String
+    ): String {
+        return try {
+            val prompt = """
+                I am returning to read '$bookTitle'. 
+                
+                Based on my previous highlights:
+                "$highlightsContext"
+                
+                And the current page text:
+                "$currentPageText"
+                
+                Provide a quick 3-sentence recap of the plot leading up to this point and a brief 'Who's Who' of characters present in this specific scene.
+                STRICTLY avoid future plot spoilers.
+            """.trimIndent()
+
+            getGeminiModel().generateContent(prompt).text ?: "Unable to generate recap."
+        } catch (e: Exception) {
+            "Error generating recap: ${e.localizedMessage}"
         }
     }
 
@@ -98,7 +147,8 @@ class AiRepository @Inject constructor(
         } catch (e: Exception) { "Error: ${e.localizedMessage}" }
     }
 
-    suspend fun getRecallSummary(
+
+   suspend fun getRecallSummary(
         bookTitle: String,
         highlightsContext: String
     ): String {

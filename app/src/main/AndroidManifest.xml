@@ -23,15 +23,5 @@
         </activity>
 
     </application>
-    <queries>
-        <package android:name="com.socialnmobile.colordict" />
-        <package android:name="org.goldendict.android" />
 
-        <provider android:authorities="com.socialnmobile.colordict.share.DictProvider" />
-        <provider android:authorities="org.goldendict.android.provider" />
-
-        <intent>
-            <action android:name="android.intent.action.SEARCH" />
-        </intent>
-    </queries>
 </manifest>

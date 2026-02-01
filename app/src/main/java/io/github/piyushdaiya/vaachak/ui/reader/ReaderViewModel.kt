@@ -1,3 +1,25 @@
+/*
+ *  Copyright (c) 2026 Piyush Daiya
+ *  *
+ *  * Permission is hereby granted, free of charge, to any person obtaining a copy
+ *  * of this software and associated documentation files (the "Software"), to deal
+ *  * in the Software without restriction, including without limitation the rights
+ *  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ *  * copies of the Software, and to permit persons to whom the Software is
+ *  * furnished to do so, subject to the following conditions:
+ *  *
+ *  * The above copyright notice and this permission notice shall be included in all
+ *  * copies or substantial portions of the Software.
+ *  *
+ *  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ *  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ *  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ *  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ *  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ *  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ *  * SOFTWARE.
+ */
+
 package io.github.piyushdaiya.vaachak.ui.reader
 
 import android.content.Context
@@ -28,6 +50,9 @@ import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.Publication
 import org.readium.r2.shared.publication.services.search.SearchService
 import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 //
 @OptIn(ExperimentalCoroutinesApi::class, ExperimentalReadiumApi::class, FlowPreview::class)
@@ -53,8 +78,7 @@ class ReaderViewModel @Inject constructor(
         bookOverride
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
-
-    // --- 2. READER PREFERENCES ---
+     // --- 2. READER PREFERENCES ---
     val epubPreferences: StateFlow<EpubPreferences> = combine(
         settingsRepo.readerTheme,
         settingsRepo.readerFontFamily,
@@ -75,6 +99,8 @@ class ReaderViewModel @Inject constructor(
         val letterSp = params[5] as? Double
         val paraSp = params[6] as? Double
         val marginSide = params[7] as Double
+        val marginTop = params[8] as Double
+        val marginBottom = params[9] as Double
 
         val rTheme = when(themeStr) {
             "dark" -> Theme.DARK
@@ -219,18 +245,7 @@ class ReaderViewModel @Inject constructor(
 
     fun toggleBookAi(enabled: Boolean) { _bookAiEnabled.value = enabled }
 
-    fun updateTheme(theme: String) = viewModelScope.launch { settingsRepo.updateReaderPreferences(theme = theme) }
-    fun updateFontFamily(font: String) = viewModelScope.launch { settingsRepo.updateReaderPreferences(fontFamily = font) }
-    fun updateFontSize(size: Double) = viewModelScope.launch { settingsRepo.updateReaderPreferences(fontSize = size) }
-    fun updatePublisherStyles(enabled: Boolean) = viewModelScope.launch { settingsRepo.updateReaderPreferences(publisherStyles = enabled) }
-    fun updateTextAlign(align: String) = viewModelScope.launch { settingsRepo.updateReaderPreferences(textAlign = align) }
-    fun updateLetterSpacing(value: Double) = viewModelScope.launch { settingsRepo.updateReaderPreferences(letterSpacing = value) }
-    fun updateParaSpacing(value: Double) = viewModelScope.launch { settingsRepo.updateReaderPreferences(paraSpacing = value) }
-    fun updateMarginSide(value: Double) = viewModelScope.launch { settingsRepo.updateReaderPreferences(marginSide = value) }
-    fun updateMarginTop(value: Double) = viewModelScope.launch { settingsRepo.updateReaderPreferences(marginTop = value) }
-    fun updateMarginBottom(value: Double) = viewModelScope.launch { settingsRepo.updateReaderPreferences(marginBottom = value) }
 
-    fun resetLayout() = viewModelScope.launch { settingsRepo.resetReaderLayout() }
 
     // --- NEW: Save All Preferences (For "Save" button) ---
     fun savePreferences(newPrefs: EpubPreferences) = viewModelScope.launch {
@@ -251,7 +266,7 @@ class ReaderViewModel @Inject constructor(
     fun onRecapClicked() { _showRecapConfirmation.value = true }
     fun dismissRecapConfirmation() { _showRecapConfirmation.value = false }
 
-    fun generateRecap() {
+    fun getQuickRecap() {
         if (!_bookAiEnabled.value) return
         _showRecapConfirmation.value = false
         _isRecapLoading.value = true
@@ -259,8 +274,8 @@ class ReaderViewModel @Inject constructor(
         viewModelScope.launch {
             val title = _publication.value?.metadata?.title ?: "Unknown Book"
             val currentContext = "Current Position: ${_currentPageInfo.value}"
-            val quickrecap = aiRepository.getQuickRecap(title, currentContext)
-            _recapText.value = quickrecap
+            val summary = aiRepository.getQuickRecap(title, currentContext)
+            _recapText.value = summary
             _isRecapLoading.value = false
         }
     }
@@ -346,20 +361,97 @@ class ReaderViewModel @Inject constructor(
     fun onTextSelected(t: String) { currentSelectedText = t; _isBottomSheetVisible.value = true }
 
     fun onActionExplain() {
+        _isDictionaryLookup.value = false
+        _isDictionaryLoading.value = false
+
         if (!_bookAiEnabled.value) return
-        viewModelScope.launch { performAiAction("Thinking...") { aiRepository.explainContext(currentSelectedText) } }
+        viewModelScope.launch { performAiAction("Thinking...") {
+            aiRepository.explainContext(currentSelectedText) } }
     }
     fun onActionWhoIsThis() {
+        _isDictionaryLookup.value = false
+        _isDictionaryLoading.value = false
         if (!_bookAiEnabled.value) return
         viewModelScope.launch { performAiAction("Investigating...") { aiRepository.whoIsThis(currentSelectedText, _publication.value?.metadata?.title?:"", "") } }
     }
     fun onActionVisualize() {
+        _isDictionaryLookup.value = false
+        _isDictionaryLoading.value = false
         if (!_bookAiEnabled.value) return
-        viewModelScope.launch { performAiAction("Drawing...") { aiRepository.visualizeText(currentSelectedText) }; _isImageResponse.value = true }
+         viewModelScope.launch { performAiAction("Drawing...") { aiRepository.visualizeText(currentSelectedText) }; _isImageResponse.value = true }
     }
     private suspend fun performAiAction(m: String, a: suspend () -> String) { _aiResponse.value = m; try { _aiResponse.value = a() } catch(e:Exception){ _aiResponse.value = e.message?:"" } }
-    fun lookupWord(w: String, c: Context) { /* ... */ }
+
     fun dismissRecap() { _recapText.value = null }
     fun dismissBottomSheet() { _isBottomSheetVisible.value = false }
     fun clearSnackbar() { _snackbarMessage.value = null }
+
+    //Dictionary
+
+
+    fun lookupWord(word: String, context: Context) {
+        val trimmedWord = word.trim()
+
+        // GUARDRAIL: Limit to 5 words or 50 characters
+        val wordCount = trimmedWord.split(Regex("\\s+")).size
+        if (wordCount > 5 || trimmedWord.length > 50) {
+            _isBottomSheetVisible.value = true
+            _isDictionaryLookup.value = true // Keep as dictionary style for consistency
+            _isDictionaryLoading.value = false
+            _aiResponse.value = "Selection too long for dictionary. Please select a single word, or use 'Ask AI' for sentences."
+            return
+        }
+        viewModelScope.launch {
+
+
+            // 1. Fetch the setting from DataStore (Flow)
+            // We use .first() to get the current snapshot of the preference
+            val isEmbedded = settingsRepo.getUseEmbeddedDictionary().first()
+
+
+            _isDictionaryLookup.value = true
+            var definition: String? = null
+            if (isEmbedded) {
+                // Open bottom sheet and show loading state
+                _isBottomSheetVisible.value = true
+                _aiResponse.value = "Searching device dictionaries..."
+                _isDictionaryLoading.value = true
+
+                try {
+                    // 2. Delegate to DictionaryRepository ( StarDict --> Local JSON)
+                    definition = dictionaryRepository.getDefinition(word)
+
+
+                    // 3. Update UI (Crucial: Update response BEFORE stopping loader)
+                    if (definition != null) {
+                        _aiResponse.value = definition
+                    } else {
+                        _aiResponse.value = "No definition found for '$word' in StarDict or local JSON dictionary."
+                    }
+
+                    _isDictionaryLoading.value = false
+                } catch (e: Exception) {
+
+                    _aiResponse.value = "Error searching local dictionaries."
+                } finally {
+                    _isDictionaryLoading.value = false
+                }
+            } else {
+                _isBottomSheetVisible.value = true
+                _aiResponse.value = "Searching embedded directory..."
+                _isDictionaryLoading.value = true
+                //  Json Directory
+
+                 definition = dictionaryRepository.getjsonDefinition(word)
+                if (definition != null) {
+
+                    _aiResponse.value = definition
+                } else {
+                    _aiResponse.value = "No definition found for '$word' in embedded json dictionary."
+                }
+                _isDictionaryLoading.value = false
+            }
+        }
+
+    }
 }
