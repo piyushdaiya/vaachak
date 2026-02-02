@@ -17,7 +17,7 @@ Vaachak follows a **"Bring Your Own Key" (BYOK)** privacy model. Your keys are s
 
 > **Note:** The app will validate your keys immediately. If the "AI Status" shows green, you are ready to go.
 
-![img_1.png](img_1.png)
+![img_1.png](images/img_1.png)
 
 ---
 
@@ -28,7 +28,7 @@ Vaachak follows a **"Bring Your Own Key" (BYOK)** privacy model. Your keys are s
 2.  Select an `.epub` file from your device storage.
 3.  The book will appear in your "Library" grid.
 
-![img_2.png](img_2.png)![img_3.png](img_3.png)
+![img_2.png](images/img_2.png)![img_3.png](images/img_3.png)
 
 
 ### Quick Recall (History)
@@ -37,7 +37,7 @@ Before opening  book, get a quick reminder of the plot tension.
 * Look for the **History ()** icon on any book card in the "Continue Reading" row.
 * Tap it to see a 2-sentence briefing of what's happening in that book.
 
-!![img_18.png](img_18.png)
+!![img_18.png](images/img_18.png)
 
 ### "The Story So Far" (Reading Session Recap)
 
@@ -45,16 +45,16 @@ Before opening  book, get a quick reminder of the plot tension.
 2.  Vaachak generates a spoiler-free summaries of books you have read based *only* on the highlights saved in your notes and a brief 'Who's Who' of characters until now ..
 3.  **Auto-Save Recaps:** This setting in Settings screen automatically stores summaries in your Highlights with tag "Recap".
 ---
-![img_19.png](img_19.png)
-![img_20.png](img_20.png)
-![img_21.png](img_21.png)
+![img_19.png](images/img_19.png)
+![img_20.png](images/img_20.png)
+![img_21.png](images/img_21.png)
 
 ## 👓 3. Reading Experience
 
 ### Reader Controls
 * **Top Bar:** Table of Contents, Search, Highlights, and Settings.
 * **Bottom Bar:** Chapter Progress, Battery %, and Clock (optimized for E-Ink).
-![img_4.png](img_4.png)
+![img_4.png](images/img_4.png)
 ### Customizing the View (v2.0)
 Vaachak offers professional-grade typography controls at book level.
 1.  Tap the **Settings (Gear Icon)** in the top bar.
@@ -69,22 +69,22 @@ Vaachak offers professional-grade typography controls at book level.
 4.  **Real-Time Preview:** Watch the sample text update instantly as you move sliders.
 5.  Tap **Save** to apply changes.
 
-![img_6.png](img_6.png)
-![img_8.png](img_8.png)![img_9.png](img_9.png)
+![img_6.png](images/img_6.png)
+![img_8.png](images/img_8.png)![img_9.png](images/img_9.png)
 
 ### Table of Contents
 1. Tap the **Table of Contents(Hamburger icon)** in the top bar.
 2. Table of contents is displayed with chapter highlighted
 3. User can move to any chapter of book from Table of contents.
-![img_33.png](img_33.png)
-![img_34.png](img_34.png)
+![img_33.png](images/img_33.png)
+![img_34.png](images/img_34.png)
 ---
 ### Search
 1. Tap the **Search(eyeglass icon)** in the top bar.
 2. User can search any word or sentence within the book.
 3. User can move to any page in search results.
-![img_35.png](img_35.png)
-![img_36.png](img_36.png)
+![img_35.png](images/img_35.png)
+![img_36.png](images/img_36.png)
 ---
 ## 🤖 4. AI Features
 
@@ -93,7 +93,7 @@ Vaachak offers professional-grade typography controls at book level.
 1. Look for the **History** icon on top bar of book page.
 2.  Vaachak generates a spoiler-free quick 3-sentence recap of the plot leading up to this point and a brief 'Who's Who' of characters present in this specific scene.
 3.  **Save to Highlights:** Tap this button to keep the summary permanently in your notes.
-![img_10.png](img_10.png) ![img_11.png](img_11.png)
+![img_10.png](images/img_10.png) ![img_11.png](images/img_11.png)
 
 ---
 
@@ -103,11 +103,11 @@ Select text (long-press) to reveal the AI menu:
 2.  **Investigate:** deep-dive into a character's history using knowledge from previous chapters.
 3.  **Visualize:** Generates a line-art illustration of the selected scene (requires Cloudflare setup).
 
-![img_13.png](img_13.png)
-![img_14.png](img_14.png)
-![img_15.png](img_15.png)
-![img_16.png](img_16.png)
-![img_17.png](img_17.png)
+![img_13.png](images/img_13.png)
+![img_14.png](images/img_14.png)
+![img_15.png](images/img_15.png)
+![img_16.png](images/img_16.png)
+![img_17.png](images/img_17.png)
 ---
 
 ## 🛡️ 5. Offline Mode
@@ -118,9 +118,9 @@ For a pure, distraction-free experience or to save battery:
 3.  **Result:** All AI buttons (Sparkle, Recap, Ask AI) will be hidden from the interface.
 
 > **Pro Tip:** You can override this per-book inside the Reader Settings > Display Tab if you need AI for just one specific difficult text.
-![img_22.png](img_22.png)
-![img_23.png](img_23.png)
-![img_24.png](img_24.png)
+![img_22.png](images/img_22.png)
+![img_23.png](images/img_23.png)
+![img_24.png](images/img_24.png)
 ---
 
 ## 📂 6. Highlights & Notes
@@ -130,8 +130,8 @@ For a pure, distraction-free experience or to save battery:
 3.  Tap any highlight to jump instantly to that page.
 4.  **Filter:** Use chips to filter by "General," "Characters," or "Recaps."
 
-![img_25.png](img_25.png)
-![img_26.png](img_26.png)
+![img_25.png](images/img_25.png)
+![img_26.png](images/img_26.png)
 
 ---
 ## 7. Dictionary
@@ -142,12 +142,12 @@ For a pure, distraction-free experience or to save battery:
 
 > **Note:** The app will validate your directory for compatible StarDict files immediately. 
 
-![img_27.png](img_27.png)
-![img_28.png](img_28.png)
-![img_29.png](img_29.png)
-![img_30.png](img_30.png)
-![img_31.png](img_31.png)
-![img_32.png](img_32.png)
+![img_27.png](images/img_27.png)
+![img_28.png](images/img_28.png)
+![img_29.png](images/img_29.png)
+![img_30.png](images/img_30.png)
+![img_31.png](images/img_31.png)
+![img_32.png](images/img_32.png)
 
 ## 8. All Highlights (Centralized highlights from all books)
 
@@ -158,6 +158,6 @@ For a pure, distraction-free experience or to save battery:
 5. User can click on highlight to jump to page where highlight is located in the book
 6. User can delete highlights if needed.
 
-![img_37.png](img_37.png)
-![img_38.png](img_38.png)
-![img_39.png](img_39.png)
+![img_37.png](images/img_37.png)
+![img_38.png](images/img_38.png)
+![img_39.png](images/img_39.png)
