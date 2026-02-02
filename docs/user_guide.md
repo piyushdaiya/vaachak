@@ -93,7 +93,7 @@ Vaachak offers professional-grade typography controls at book level.
 1. Look for the **History** icon on top bar of book page.
 2.  Vaachak generates a spoiler-free quick 3-sentence recap of the plot leading up to this point and a brief 'Who's Who' of characters present in this specific scene.
 3.  **Save to Highlights:** Tap this button to keep the summary permanently in your notes.
-![img_10.png](images/img_10.png) ![img_11.png](images/img_11.png)
+![img_11.png](images/img_11.png)
 
 ---
 
