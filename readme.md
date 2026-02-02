@@ -1,8 +1,13 @@
-# Vaachak (वाचक) 📖🤖
+# Vaachak (वाचक)
 
-**Vaachak** (derived from the Hindi/Sanskrit word for "Reader") is a next-generation Android EPUB reader specifically optimized for E-Ink displays (like the Onyx Boox, Meebook, and Bigme).
+**Vaachak** (Sanskrit for "Reader") is a minimalist, AI-enhanced Android e-reader application specifically optimized for E-Ink devices like the **Boox Leaf 3C**.
 
-It seamlessly bridges traditional reading with advanced multimodal AI. By leveraging the **Readium 3.1.2** engine and intercepting native Android text selection, Vaachak allows readers to instantly explain complex terms, visualize scenes with generative art, and recall character histories—all without leaving the page.
+This project marks my return to hands-on development, serving as a bridge between my years in management and my lifelong passion for building. It was developed using **Google Gemini** as a "vibe programmer" partner to demonstrate that architectural thinking and problem-solving are timeless skills.
+
+## 📖 The Problem
+Most Android e-readers are designed for high-refresh LCD/OLED screens, leading to ghosting or poor UI contrast on E-Ink. Additionally, while AI context-awareness is the future of reading, most existing solutions are over-engineered or lock AI features behind a subscription.
+
+Vaachak fills this gap: a tool built by a reader, for readers.
 
 ## ✨ Features
 
@@ -34,6 +39,11 @@ It seamlessly bridges traditional reading with advanced multimodal AI. By levera
 * **Book-Level Overrides:** You can enable AI features for a specific book even if the global setting is Offline (or vice versa).
 * **Local Privacy:** Your library and highlights remain stored locally on your device using Room Database.
 * **Secure API Configuration:** **Bring Your Own Keys (BYOK)**. No hardcoded secrets; keys are stored in encrypted DataStore preferences.
+
+## 🛠️ Tech Stack
+* **Language:** Kotlin / Java (Android)
+* **LLM Partner:** Google Gemini (used for pair programming, boilerplate generation, and API orchestration).
+* **Target Hardware:** Boox Leaf 3C (Android 11+).
 
 ## 🏗️ Architecture
 
@@ -158,4 +168,21 @@ This project gratefully utilizes the following open-source libraries:
 * **Room Database** (Apache 2.0): SQLite object mapping library.
 
 ---
-*Built with  🤖 by Piyush Daiya*
+## 🧠 Lessons Learned: The "Vibe Programming" Reality Check
+Developing Vaachak wasn't just about feeding prompts to an LLM; it was a masterclass in modern software orchestration.
+
+* **Architecting for E-Ink Latency:** Standard Android UI patterns (smooth scrolls/fades) cause ghosting on E-Ink. I had to guide the AI to implement high-contrast, static UI elements and Partial Refresh logic.
+* **Precision Prompting:** I learned to treat prompts like **Micro-PRs**. Instead of general requests, I provided specific constraints (e.g., "Implement non-blocking PDF rendering using the ABC library"), which sharpened my requirement-definition skills.
+* **The Management Edge:** I realized that my leadership experience actually improved my coding. I was better at modularizing the app and managing data flow than I was a decade ago. The AI handled the *syntax*; I handled the *strategy*.
+
+## 🗺️ Future Roadmap
+* **Calibre Integration:** Wireless syncing with local Calibre libraries.
+* **OPDS Support:** Support for Open Publication Distribution System catalogs.
+* **Advanced AI Insights:** "Character Maps" or "Plot Recaps" powered by Gemini for long-form fiction.
+* **Custom E-Ink Drivers:** Deeper integration with specific vendor SDKs for zero-latency refreshing.
+
+## 💭 Background
+I’ve been an avid follower of the **MobileRead** community since the early 2000s. After years moving up the management chain, this project is my way of reclaiming the "maker's high" and proving that a foundational understanding of technology allows one to pick up any modern stack with ease.
+
+---
+*Developed by Piyush Daiya | [LinkedIn](https://www.linkedin.com/in/piyush-daiya)*
