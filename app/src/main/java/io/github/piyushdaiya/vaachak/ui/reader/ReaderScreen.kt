@@ -299,7 +299,9 @@ fun ReaderScreen(
 
             if (showRecapConfirmation) {
                 AlertDialog(
-                    onDismissRequest = { viewModel.dismissRecapConfirmation() },
+                    onDismissRequest = { viewModel.dismissRecapConfirmation()
+                                       viewModel.dismissRecap()
+                                       },
                     title = { Text("Quick Recap") },
                     text = { Text("Would you like to generate a quick recap summary of the book so far?") },
                     confirmButton = { TextButton(onClick = { viewModel.getQuickRecap() }) { Text("Yes", fontWeight = FontWeight.Bold) } },
@@ -356,7 +358,9 @@ fun ReaderScreen(
             }
 
             if (showDeleteDialogId != null) {
-                AlertDialog(onDismissRequest = { showDeleteDialogId = null }, title = { Text("Delete Highlight?") }, text = { Text("This action cannot be undone.") }, confirmButton = { TextButton(onClick = { viewModel.deleteHighlight(showDeleteDialogId!!); showDeleteDialogId = null }) { Text("Delete", color = Color.Red) } }, dismissButton = { TextButton(onClick = { showDeleteDialogId = null }) { Text("Cancel") } }, modifier = Modifier.zIndex(4f))
+                AlertDialog(onDismissRequest = { showDeleteDialogId = null
+                                                viewModel.dismissRecap()
+                                               }, title = { Text("Delete Highlight?") }, text = { Text("This action cannot be undone.") }, confirmButton = { TextButton(onClick = { viewModel.deleteHighlight(showDeleteDialogId!!); showDeleteDialogId = null }) { Text("Delete", color = Color.Red) } }, dismissButton = { TextButton(onClick = { showDeleteDialogId = null }) { Text("Cancel") } }, modifier = Modifier.zIndex(4f))
             }
         }
     }

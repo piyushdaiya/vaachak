@@ -35,6 +35,10 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/**
+ * ViewModel for the Session History screen.
+ * Manages the retrieval and generation of recall summaries for recently read books.
+ */
 @HiltViewModel
 class SessionHistoryViewModel @Inject constructor(
     private val bookDao: BookDao,
@@ -44,14 +48,27 @@ class SessionHistoryViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val _recallMap = MutableStateFlow<Map<String, String>>(emptyMap())
+    /**
+     * A map of book titles to their generated recall summaries.
+     */
     val recallMap: StateFlow<Map<String, String>> = _recallMap.asStateFlow()
 
     private val _isLoading = MutableStateFlow(false)
+    /**
+     * State flow indicating whether a recall generation is in progress.
+     */
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
     private val _recentBooks = MutableStateFlow<List<BookEntity>>(emptyList())
+    /**
+     * List of recently read books considered for recall generation.
+     */
     val recentBooks: StateFlow<List<BookEntity>> = _recentBooks.asStateFlow()
 
+    /**
+     * Triggers the generation of recall summaries for the top 5 recently read books.
+     * Fetches highlights, generates a summary using AI, and optionally saves it as a highlight.
+     */
     fun triggerGlobalRecall() {
         viewModelScope.launch {
             _isLoading.value = true

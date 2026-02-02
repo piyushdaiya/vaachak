@@ -32,12 +32,23 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 
+/**
+ * Repository for fetching word definitions from various dictionary sources.
+ * Supports both an internal JSON dictionary and external StarDict dictionaries.
+ */
 @Singleton
 class DictionaryRepository @Inject constructor(
     private val jsonProvider: JsonDictionaryProvider,
     private val starDictParser: StarDictParser,
     private val settingsRepository: SettingsRepository
 ) {
+    /**
+     * Retrieves a definition from the internal JSON dictionary.
+     * Only performs lookup if the embedded dictionary setting is enabled.
+     *
+     * @param word The word to define.
+     * @return The definition if found, or null otherwise.
+     */
     suspend fun getjsonDefinition(word: String): String? = withContext(Dispatchers.IO) {
         // 1. Check if user wants to use embedded dictionary
         if (settingsRepository.getUseEmbeddedDictionary().first()) {
@@ -51,6 +62,13 @@ class DictionaryRepository @Inject constructor(
         null // Final return for the block if nothing is found
     }
 
+    /**
+     * Retrieves a definition for a word, prioritizing external StarDict dictionaries.
+     * If not found in StarDict (or if not configured), falls back to the internal JSON dictionary.
+     *
+     * @param word The word to define.
+     * @return The definition if found in either source, or null otherwise.
+     */
     suspend fun getDefinition(word: String): String? = withContext(Dispatchers.IO) {
         // 1. Check if user wants to use embedded dictionary
         if (settingsRepository.getUseEmbeddedDictionary().first()) {

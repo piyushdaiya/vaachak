@@ -41,8 +41,15 @@ import java.io.File
 import java.io.FileOutputStream
 import javax.inject.Inject
 
+/**
+ * Enum representing the sorting order for books.
+ */
 enum class SortOrder { TITLE, AUTHOR, DATE_ADDED }
 
+/**
+ * ViewModel for the Bookshelf screen.
+ * Manages the list of books, importing new books, sorting, and generating recaps.
+ */
 @HiltViewModel
 class BookshelfViewModel @Inject constructor(
     private val bookDao: BookDao,
@@ -54,28 +61,53 @@ class BookshelfViewModel @Inject constructor(
 ) : ViewModel() {
 
     // --- STATE: THEME ---
+    /**
+     * Indicates if E-ink optimization is enabled.
+     */
     val isEinkEnabled: StateFlow<Boolean> = settingsRepo.isEinkEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     // NEW: Offline Mode State
+    /**
+     * Indicates if offline mode is enabled.
+     */
     val isOfflineModeEnabled: StateFlow<Boolean> = settingsRepo.isOfflineModeEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     // --- STATE: SNACKBAR ---
     private val _snackbarMessage = MutableStateFlow<String?>(null)
+    /**
+     * A message to be displayed in a Snackbar.
+     */
     val snackbarMessage = _snackbarMessage.asStateFlow()
+
+    /**
+     * Clears the current Snackbar message.
+     */
     fun clearSnackbarMessage() { _snackbarMessage.value = null }
 
     // --- STATE: BOOKS ---
+    /**
+     * A list of all books in the library, sorted by recent activity.
+     */
     val allBooks: StateFlow<List<BookEntity>> = bookDao.getAllBooksSortedByRecent()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _searchQuery = MutableStateFlow("")
+    /**
+     * The current search query for filtering books.
+     */
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
     private val _sortOrder = MutableStateFlow(SortOrder.DATE_ADDED)
+    /**
+     * The current sort order for the library.
+     */
     val sortOrder = _sortOrder.asStateFlow()
 
+    /**
+     * A filtered and sorted list of books that have not been started (progress <= 0).
+     */
     val filteredLibraryBooks: StateFlow<List<BookEntity>> =
         combine(allBooks, searchQuery, _sortOrder) { books, query, order ->
             val filtered = books.filter { book -> book.progress <= 0.0 && book.title.contains(query, ignoreCase = true) }
@@ -86,21 +118,48 @@ class BookshelfViewModel @Inject constructor(
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    /**
+     * A list of recently read books (progress > 0), sorted by last read time.
+     */
     val recentBooks: StateFlow<List<BookEntity>> = allBooks.map { books ->
         books.filter { it.progress > 0.0 }.sortedByDescending { it.lastRead }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // --- RECAP STATE ---
     private val _recapState = MutableStateFlow<Map<String, String>>(emptyMap())
+    /**
+     * A map of book URIs to their generated recap summaries.
+     */
     val recapState: StateFlow<Map<String, String>> = _recapState.asStateFlow()
 
     private val _isLoadingRecap = MutableStateFlow<String?>(null)
+    /**
+     * The URI of the book for which a recap is currently being generated, or null if none.
+     */
     val isLoadingRecap: StateFlow<String?> = _isLoadingRecap.asStateFlow()
 
     // --- ACTIONS ---
+
+    /**
+     * Updates the search query.
+     *
+     * @param query The new search query.
+     */
     fun updateSearchQuery(query: String) { _searchQuery.value = query }
+
+    /**
+     * Updates the sort order.
+     *
+     * @param order The new sort order.
+     */
     fun updateSortOrder(order: SortOrder) { _sortOrder.value = order }
 
+    /**
+     * Imports a book from a URI into the library.
+     * Extracts metadata and cover image.
+     *
+     * @param uri The URI of the book file.
+     */
     fun importBook(uri: Uri) {
         viewModelScope.launch {
             if (allBooks.value.any { it.uriString == uri.toString() }) {
@@ -134,8 +193,18 @@ class BookshelfViewModel @Inject constructor(
         return file.absolutePath
     }
 
+    /**
+     * Deletes a book from the library.
+     *
+     * @param id The ID of the book to delete.
+     */
     fun deleteBook(id: Long) = viewModelScope.launch { bookDao.deleteBook(id) }
 
+    /**
+     * Generates a quick recap for a book using AI.
+     *
+     * @param book The book to generate a recap for.
+     */
     fun getQuickRecap(book: BookEntity) {
         // FAILSAFE: Block if Offline
         if (isOfflineModeEnabled.value) {
@@ -146,11 +215,16 @@ class BookshelfViewModel @Inject constructor(
             _isLoadingRecap.value = book.uriString
             try {
                 val contextHighlights = highlightDao.getHighlightsForBook(book.uriString).first().take(10).joinToString("\n") { it.text }
-                val summary = aiRepository.generateRecap(book.title, contextHighlights, book.lastLocationJson ?: "")
+                val summary= aiRepository.getRecallSummary(book.title, contextHighlights)
                 _recapState.value = _recapState.value + (book.uriString to summary)
             } finally { _isLoadingRecap.value = null }
         }
     }
 
+    /**
+     * Clears the generated recap for a specific book.
+     *
+     * @param uri The URI of the book.
+     */
     fun clearRecap(uri: String) { _recapState.value = _recapState.value - uri }
 }

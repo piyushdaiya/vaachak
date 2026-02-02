@@ -6,6 +6,7 @@ plugins {
     alias(libs.plugins.devtools.ksp)   // This provides 'ksp'
     id("kotlin-parcelize")
     kotlin("plugin.serialization")
+    id("org.jetbrains.dokka")
 }
 
 android {
@@ -117,4 +118,20 @@ implementation(libs.androidx.foundation)
     implementation("androidx.activity:activity-compose:1.9.0")
     implementation("org.apache.commons:commons-compress:1.26.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.1")
+}
+tasks.dokkaHtml {
+    outputDirectory.set(buildDir.resolve("dokka"))
+
+    // Naming your module
+    moduleName.set("Vaachak API Reference")
+
+    dokkaSourceSets {
+        configureEach {
+            // Do not output deprecated members
+            skipDeprecated.set(true)
+
+            // Emit warnings about visible undocumented members (useful to know what's missing)
+            reportUndocumented.set(true)
+        }
+    }
 }

@@ -6,6 +6,10 @@
 .DS_Store
 /build
 /captures
+/caches
+/daemon
+/native
+/wrapper
 .externalNativeBuild
 .cxx
 .kotlin
@@ -27,3 +31,11 @@
 AppConfig.kt
 
 *.txt
+
+# Gradle internals and caches
+.gradle/
+caches/
+build/
+
+# Ignore full Gradle distributions (but keep the small wrapper jar)
+wrapper/dists/

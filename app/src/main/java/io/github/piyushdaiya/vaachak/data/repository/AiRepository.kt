@@ -34,6 +34,10 @@ import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
+/**
+ * Repository for interacting with AI services (Gemini and Cloudflare AI).
+ * Handles text generation, explanation, character identification, and image generation.
+ */
 class AiRepository @Inject constructor(
     private val settingsRepo: SettingsRepository
 ) {
@@ -60,6 +64,12 @@ class AiRepository @Inject constructor(
         return GenerativeModel(modelName = "gemini-2.5-flash", apiKey = key)
     }
 
+    /**
+     * Generates a simple explanation for the selected text using Gemini.
+     *
+     * @param selectedText The text to explain.
+     * @return A 2-sentence explanation or an error message.
+     */
     suspend fun explainContext(selectedText: String): String {
 
         return try {
@@ -69,6 +79,14 @@ class AiRepository @Inject constructor(
         } catch (e: Exception) { "Error: ${e.localizedMessage}" }
     }
 
+    /**
+     * Identifies a character from the selected text within the context of a book.
+     *
+     * @param selectedText The character name or reference.
+     * @param bookTitle The title of the book.
+     * @param bookAuthor The author of the book.
+     * @return A spoiler-free identification of the character.
+     */
     suspend fun whoIsThis(selectedText: String, bookTitle: String, bookAuthor: String): String {
         return try {
             val prompt = "Reading '$bookTitle' by $bookAuthor. Identify character '$selectedText' without spoilers."
@@ -77,6 +95,12 @@ class AiRepository @Inject constructor(
     }
 
     // --- FIX: Using correct variable names (cfUrl / cfToken) ---
+    /**
+     * Generates an image based on a text prompt using Cloudflare AI.
+     *
+     * @param prompt The text description for the image.
+     * @return A Base64 encoded image string, or an error message.
+     */
     suspend fun visualizeText(prompt: String): String = withContext(Dispatchers.IO) {
         try {
             // FIX 1: Referenced correct flow names from SettingsRepository
@@ -110,6 +134,14 @@ class AiRepository @Inject constructor(
         }
     }
 
+    /**
+     * Generates a detailed recap using highlights and current page context.
+     *
+     * @param bookTitle The title of the book.
+     * @param highlightsContext A string containing recent highlights.
+     * @param currentPageText The text of the current page.
+     * @return A 3-sentence recap and character summary.
+     */
     suspend fun generateRecap(
         bookTitle: String,
         highlightsContext: String,
@@ -135,19 +167,15 @@ class AiRepository @Inject constructor(
         }
     }
 
-        suspend fun getQuickRecap(bookTitle: String, context: String): String {
-        return try {
-            val prompt = """
-                I am reading book '$bookTitle'. And the current page text: "$context"
-                
-                Provide a quick 3-sentence recap of the plot leading up to this point and a brief 'Who's Who' of characters present in this specific scene.
-                STRICTLY avoid future plot spoilers.
-            """.trimIndent()
-            getGeminiModel().generateContent(prompt).text ?: "Summary unavailable."
-        } catch (e: Exception) { "Error: ${e.localizedMessage}" }
-    }
 
 
+    /**
+     * Generates a recall summary based on previous highlights when returning to a book.
+     *
+     * @param bookTitle The title of the book.
+     * @param highlightsContext A string containing recent highlights.
+     * @return A 3-sentence recap and character summary based on highlights.
+     */
    suspend fun getRecallSummary(
         bookTitle: String,
         highlightsContext: String

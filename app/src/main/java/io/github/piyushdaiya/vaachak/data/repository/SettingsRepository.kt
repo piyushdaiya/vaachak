@@ -34,6 +34,10 @@ import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * Repository for managing application settings and user preferences.
+ * Uses DataStore to persist settings such as API keys, theme, and reader preferences.
+ */
 @Singleton
 class SettingsRepository @Inject constructor(
     private val dataStore: DataStore<Preferences>,
@@ -100,6 +104,15 @@ class SettingsRepository @Inject constructor(
     val readerMarginBottom: Flow<Double> = dataStore.data.map { it[READER_MARGIN_BOTTOM] ?: 1.0 }
 
     // --- WRITE ACTIONS (App) ---
+
+    /**
+     * Saves the core application settings.
+     *
+     * @param gemini The Gemini API key.
+     * @param cfUrl The Cloudflare Worker URL.
+     * @param cfToken The Cloudflare API token.
+     * @param isEnk Whether E-ink optimization is enabled.
+     */
     suspend fun saveSettings(gemini: String, cfUrl: String, cfToken: String, isEnk: Boolean) {
         dataStore.edit { prefs ->
             prefs[GEMINI_KEY] = gemini.trim()
@@ -111,15 +124,70 @@ class SettingsRepository @Inject constructor(
         }
     }
 
+    /**
+     * Sets whether generated recaps should be automatically saved.
+     *
+     * @param enabled True to enable auto-save, false otherwise.
+     */
     suspend fun setAutoSaveRecaps(enabled: Boolean) { dataStore.edit { it[AUTO_SAVE_RECAPS_KEY] = enabled } }
+
+    /**
+     * Sets the application theme mode.
+     *
+     * @param mode The [ThemeMode] to set.
+     */
     suspend fun setThemeMode(mode: ThemeMode) { dataStore.edit { it[THEME_KEY] = mode.name } }
+
+    /**
+     * Sets the contrast level for E-ink mode.
+     *
+     * @param value The contrast value (0.0 to 1.0).
+     */
     suspend fun setContrast(value: Float) { dataStore.edit { it[CONTRAST_KEY] = value } }
+
+    /**
+     * Sets whether to use the embedded dictionary.
+     *
+     * @param enabled True to use embedded dictionary, false otherwise.
+     */
     suspend fun setUseEmbeddedDictionary(enabled: Boolean) { dataStore.edit { it[USE_EMBEDDED_DICT] = enabled } }
+
+    /**
+     * Sets the folder path for the embedded dictionary.
+     *
+     * @param uri The URI string of the dictionary folder.
+     */
     suspend fun setDictionaryFolder(uri: String) { dataStore.edit { it[DICTIONARY_FOLDER_KEY] = uri } }
+
+    /**
+     * Sets whether offline mode is enabled.
+     *
+     * @param enabled True to enable offline mode, false otherwise.
+     */
     suspend fun setOfflineMode(enabled: Boolean) { dataStore.edit { it[OFFLINE_MODE_KEY] = enabled } }
+
+    /**
+     * Clears all stored settings.
+     */
     suspend fun clearSettings() { dataStore.edit { it.clear() } }
 
     // --- NEW: READER WRITE ACTIONS ---
+
+    /**
+     * Updates various reader preferences.
+     * Only non-null parameters will be updated.
+     *
+     * @param fontFamily The font family name.
+     * @param fontSize The font size multiplier.
+     * @param textAlign The text alignment.
+     * @param theme The reader theme (light, dark, sepia).
+     * @param publisherStyles Whether to respect publisher styles.
+     * @param letterSpacing The letter spacing value.
+     * @param paraSpacing The paragraph spacing value.
+     * @param marginSide The side margin value.
+     * @param marginTop The top margin value.
+     * @param marginBottom The bottom margin value.
+     */
     suspend fun updateReaderPreferences(
         fontFamily: String? = null,
         fontSize: Double? = null,
@@ -146,6 +214,10 @@ class SettingsRepository @Inject constructor(
         }
     }
 
+    /**
+     * Resets reader layout preferences to their default values.
+     * Does not reset font size or family.
+     */
     suspend fun resetReaderLayout() {
         dataStore.edit { prefs ->
             prefs.remove(READER_TEXT_ALIGN)
@@ -160,6 +232,13 @@ class SettingsRepository @Inject constructor(
     }
 
     // --- VALIDATION ---
+
+    /**
+     * Validates if a folder contains valid StarDict dictionary files.
+     *
+     * @param uriString The URI string of the folder to check.
+     * @return True if the folder contains at least one .idx file, false otherwise.
+     */
     fun validateStarDictFolder(uriString: String): Boolean {
         return try {
             val uri = Uri.parse(uriString)
