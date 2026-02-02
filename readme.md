@@ -136,12 +136,12 @@ Pre-compiled APKs for the **v2.0 Release** can be downloaded directly from GitHu
 
 👉 **[Download Vaachak v2.0](https://github.com/piyushdaiya/vaachak/releases/tag/v2.0)**
 
-Need help installing? 📲 **[Read the Installation Instructions](INSTALL_INSTRUCTIONS.md)**
+Need help installing? 📲 **[Read the Installation Instructions](/docs/Install_Instructions.md)**
 
 
 ## 📖 Documentation
 
-* [**User Guide**](user_guide.md) - Detailed instructions on using the app, including reading modes, dictionary setup, and AI features.
+* [**User Guide**](/docs/user_guide.md) - Detailed instructions on using the app, including reading modes, dictionary setup, and AI features.
 
 ## 📄 License & Attribution
 
