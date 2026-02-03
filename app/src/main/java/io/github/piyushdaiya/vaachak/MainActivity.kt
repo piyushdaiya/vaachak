@@ -42,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.node.DelegatableNode
 import androidx.compose.ui.zIndex
+import androidx.core.view.WindowCompat
 import dagger.hilt.android.AndroidEntryPoint
 import io.github.piyushdaiya.vaachak.ui.bookshelf.BookshelfScreen
 import io.github.piyushdaiya.vaachak.ui.highlights.AllHighlightsScreen
@@ -61,6 +62,8 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val intentUriString = intent?.data?.toString()
+        // FIX 1: Ensure edge-to-edge is enabled properly
+        WindowCompat.setDecorFitsSystemWindows(window, false)
 
         setContent {
             val currentTheme by settingsViewModel.themeMode.collectAsState()

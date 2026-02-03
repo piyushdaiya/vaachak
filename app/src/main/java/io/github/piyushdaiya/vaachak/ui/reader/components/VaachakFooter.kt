@@ -75,39 +75,46 @@ fun VaachakNavigationFooter(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .height(40.dp), // Reduced from 56dp to 40dp
+            .navigationBarsPadding(), // Reduced from 56dp to 40dp
         color = if (isEink) Color.White else MaterialTheme.colorScheme.surface,
         border = if (isEink) BorderStroke(1.dp, Color.Black) else BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
-        Row(
-            modifier = Modifier.fillMaxSize(),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            FooterNavItem(
-                label = "Bookshelf",
-                icon = Icons.AutoMirrored.Filled.LibraryBooks,
-                onClick = onBookshelfClick,
-                isEink = isEink
-            )
+        Column(Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth() // FIX: Changed from fillMaxSize()
+                    .height(56.dp)  // FIX: Standard Bottom Nav Height
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                FooterNavItem(
+                    label = "Bookshelf",
+                    icon = Icons.AutoMirrored.Filled.LibraryBooks,
+                    onClick = onBookshelfClick,
+                    isEink = isEink
+                )
 
-            if (isEink) VerticalDivider()
+                if (isEink) VerticalDivider()
 
-            FooterNavItem(
-                label = "Highlights",
-                icon = Icons.Default.CollectionsBookmark,
-                onClick = onHighlightsClick,
-                isEink = isEink
-            )
+                FooterNavItem(
+                    label = "Highlights",
+                    icon = Icons.Default.CollectionsBookmark,
+                    onClick = onHighlightsClick,
+                    isEink = isEink
+                )
 
-            if (isEink) VerticalDivider()
+                if (isEink) VerticalDivider()
 
-            FooterNavItem(
-                label = "About",
-                icon = Icons.Default.Info,
-                onClick = onAboutClick,
-                isEink = isEink
-            )
+                FooterNavItem(
+                    label = "About",
+                    icon = Icons.Default.Info,
+                    onClick = onAboutClick,
+                    isEink = isEink
+                )
+            }
+            // This spacer pushes the row up above the Android navigation bar
+            Spacer(Modifier.navigationBarsPadding())
         }
     }
 }
