@@ -36,7 +36,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Brush
-import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.PersonSearch
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -54,7 +53,7 @@ import androidx.core.text.HtmlCompat
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AiBottomSheet(
-    responseText: String?,
+    responseText: String? = null,
     isImage: Boolean= false,
     isDictionary: Boolean = false,
     isDictionaryLoading: Boolean = false,

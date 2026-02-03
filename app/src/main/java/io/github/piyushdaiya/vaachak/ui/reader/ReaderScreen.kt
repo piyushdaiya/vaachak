@@ -68,7 +68,9 @@ import org.readium.r2.navigator.epub.EpubNavigatorFragment
 import org.readium.r2.shared.ExperimentalReadiumApi
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.util.AbsoluteUrl
-
+// Required for coordinates
+import org.readium.r2.navigator.input.InputListener // Required for touch handling
+import org.readium.r2.navigator.input.TapEvent // Required for tap data
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalReadiumApi::class)
 @Composable
@@ -169,6 +171,7 @@ fun ReaderScreen(
         object : EpubNavigatorFragment.Listener {
             override fun onJumpToLocator(locator: Locator) { viewModel.updateProgress(locator) }
             override fun onExternalLinkActivated(url: AbsoluteUrl) {}
+
         }
     }
 
@@ -192,6 +195,29 @@ fun ReaderScreen(
                     event.decoration.id.toLongOrNull()?.let { showDeleteDialogId = it; return true }
                 }
                 return false
+            }
+        }
+    }
+
+    // 2. NEW: Dedicated Input Listener for Tap Zones
+    val inputListener = remember {
+        object : InputListener {
+            override fun onTap(event: TapEvent): Boolean {
+                val screenWidth = view.width.toFloat()
+                val x = event.point.x // Get x-coordinate of the tap
+
+                // Define Dead Zones (Center 60%)
+                val leftZoneEnd = screenWidth * 0.2f
+                val rightZoneStart = screenWidth * 0.8f
+
+                return if (x > leftZoneEnd && x < rightZoneStart) {
+                    // Tap was in the center -> Consume event (return true) to block page turn
+                    viewModel.toggleReaderSettings()
+                    true
+                } else {
+                    // Tap was on edge -> Let Readium handle page turn (return false)
+                    false
+                }
             }
         }
     }
@@ -227,6 +253,7 @@ fun ReaderScreen(
 
         if (navigator.isAdded) {
             navigator.addDecorationListener("user_highlights", decorationListener)
+            navigator.addInputListener(inputListener)
             navigator.lifecycle.addObserver(lifecycleObserver)
             // FIX: Must use scope.launch
             scope.launch {

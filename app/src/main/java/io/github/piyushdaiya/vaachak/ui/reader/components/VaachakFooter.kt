@@ -75,7 +75,7 @@ fun VaachakNavigationFooter(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .navigationBarsPadding(), // Reduced from 56dp to 40dp
+            .navigationBarsPadding(), //Fix for Android Nav Bar
         color = if (isEink) Color.White else MaterialTheme.colorScheme.surface,
         border = if (isEink) BorderStroke(1.dp, Color.Black) else BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {

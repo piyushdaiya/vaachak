@@ -382,6 +382,7 @@ class ReaderViewModel @Inject constructor(
     fun onActionExplain() {
         _isDictionaryLookup.value = false
         _isDictionaryLoading.value = false
+        _isImageResponse.value = false
         if (!_bookAiEnabled.value) return
         viewModelScope.launch { performAiAction("Thinking...") { aiRepository.explainContext(currentSelectedText) } }
     }
@@ -389,15 +390,16 @@ class ReaderViewModel @Inject constructor(
     fun onActionWhoIsThis() {
         _isDictionaryLookup.value = false
         _isDictionaryLoading.value = false
+        _isImageResponse.value = false
         if (!_bookAiEnabled.value) return
-        viewModelScope.launch { performAiAction("Investigating...") { aiRepository.whoIsThis(currentSelectedText, _publication.value?.metadata?.title?:"", "") } }
+        viewModelScope.launch { performAiAction("Investigating...") { aiRepository.whoIsThis(currentSelectedText, _publication.value?.metadata?.title?:"", "") }}
     }
 
     fun onActionVisualize() {
         _isDictionaryLookup.value = false
         _isDictionaryLoading.value = false
         if (!_bookAiEnabled.value) return
-        viewModelScope.launch { performAiAction("Drawing...") { aiRepository.visualizeText(currentSelectedText) }; _isImageResponse.value = true }
+        viewModelScope.launch { performAiAction("Drawing...") { aiRepository.visualizeText(currentSelectedText) }; _isImageResponse.value = true ;}
     }
     private suspend fun performAiAction(m: String, a: suspend () -> String) { _aiResponse.value = m; try { _aiResponse.value = a() } catch(e:Exception){ _aiResponse.value = e.message?:"" } }
 

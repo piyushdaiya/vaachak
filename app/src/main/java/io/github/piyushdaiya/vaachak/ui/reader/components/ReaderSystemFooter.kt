@@ -66,7 +66,7 @@ fun ReaderSystemFooter(
     Surface(
         color = containerColor,
         contentColor = contentColor,
-        modifier = Modifier.fillMaxWidth().navigationBarsPadding()
+        modifier = Modifier.fillMaxWidth().navigationBarsPadding() //Fix for Android Nav Bar
     ) {
         Column {
             HorizontalDivider(thickness = if (isEink) 1.dp else 0.5.dp, color = dividerColor)
