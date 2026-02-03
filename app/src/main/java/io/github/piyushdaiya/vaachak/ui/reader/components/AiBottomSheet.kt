@@ -55,7 +55,7 @@ import androidx.core.text.HtmlCompat
 @Composable
 fun AiBottomSheet(
     responseText: String?,
-    isImage: Boolean,
+    isImage: Boolean= false,
     isDictionary: Boolean = false,
     isDictionaryLoading: Boolean = false,
     isEink: Boolean = false,

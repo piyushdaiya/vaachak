@@ -22,7 +22,6 @@
 
 package io.github.piyushdaiya.vaachak.ui.reader
 
-import android.content.Context
 import android.graphics.Color
 import android.net.Uri
 import androidx.lifecycle.ViewModel
@@ -50,9 +49,6 @@ import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.Publication
 import org.readium.r2.shared.publication.services.search.SearchService
 import javax.inject.Inject
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * ViewModel for the Reader screen.
@@ -78,58 +74,24 @@ class ReaderViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     private val _bookAiEnabled = MutableStateFlow(true)
-    val isAiEnabled: StateFlow<Boolean> = combine(isOfflineModeEnabled, _bookAiEnabled) { globalOffline, bookOverride ->
-        bookOverride
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+    val isAiEnabled = combine(isOfflineModeEnabled, _bookAiEnabled) { _, local -> local }
+        .stateIn(viewModelScope, SharingStarted.Lazily, true)
 
-     // --- 2. READER PREFERENCES ---
+    // --- 2. READER PREFERENCES ---
+    //
     val epubPreferences: StateFlow<EpubPreferences> = combine(
-        settingsRepo.readerTheme,
-        settingsRepo.readerFontFamily,
-        settingsRepo.readerFontSize,
-        settingsRepo.readerTextAlign,
-        settingsRepo.readerPublisherStyles,
-        settingsRepo.readerLetterSpacing,
-        settingsRepo.readerParaSpacing,
-        settingsRepo.readerMarginSide,
-        settingsRepo.readerMarginTop,
-        settingsRepo.readerMarginBottom
+        settingsRepo.readerTheme as Flow<Any?>,         // 0
+        settingsRepo.readerFontFamily as Flow<Any?>,    // 1
+        settingsRepo.readerFontSize as Flow<Any?>,      // 2
+        settingsRepo.readerTextAlign as Flow<Any?>,     // 3
+        settingsRepo.readerLineHeight as Flow<Any?>,    // 4
+        settingsRepo.readerPublisherStyles as Flow<Any?>,// 5
+        settingsRepo.readerLetterSpacing as Flow<Any?>, // 6
+        settingsRepo.readerParaSpacing as Flow<Any?>,   // 7
+        settingsRepo.readerMarginSide as Flow<Any?>     // 8
     ) { params ->
-        val themeStr = params[0] as String
-        val fontStr = params[1] as? String
-        val fontSizeVal = params[2] as Double
-        val alignStr = params[3] as String
-        val pubStyles = params[4] as Boolean
-        val letterSp = params[5] as? Double
-        val paraSp = params[6] as? Double
-        val marginSide = params[7] as Double
-        val marginTop = params[8] as Double
-        val marginBottom = params[9] as Double
-
-        val rTheme = when(themeStr) {
-            "dark" -> Theme.DARK
-            "sepia" -> Theme.SEPIA
-            else -> Theme.LIGHT
-        }
-
-        val rFont = fontStr?.let { FontFamily(it) }
-        val rAlign = when(alignStr) {
-            "left" -> TextAlign.LEFT
-            "justify" -> TextAlign.JUSTIFY
-            else -> TextAlign.START
-        }
-
-        EpubPreferences(
-            theme = rTheme,
-            fontSize = fontSizeVal,
-            publisherStyles = pubStyles,
-            fontFamily = if (!pubStyles) rFont else null,
-            textAlign = if (!pubStyles) rAlign else null,
-            letterSpacing = if (!pubStyles) letterSp else null,
-            paragraphSpacing = if (!pubStyles) paraSp else null,
-            pageMargins = if (!pubStyles) marginSide else null
-        )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), EpubPreferences())
+        buildEpubPreferences(params)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, EpubPreferences())
 
 
     // --- 3. READER STATE ---
@@ -158,7 +120,7 @@ class ReaderViewModel @Inject constructor(
     val isBookSearching: StateFlow<Boolean> = _isBookSearching.asStateFlow()
     private val _searchResults = MutableStateFlow<List<Locator>>(emptyList())
     val searchResults: StateFlow<List<Locator>> = _searchResults.asStateFlow()
-    private val _showHighlights = MutableStateFlow(false)
+    private val _showHighlights = MutableStateFlow(true)
     val showHighlights: StateFlow<Boolean> = _showHighlights.asStateFlow()
     private val _jumpEvent = MutableSharedFlow<Locator>()
     val jumpEvent = _jumpEvent.asSharedFlow()
@@ -186,47 +148,38 @@ class ReaderViewModel @Inject constructor(
     private val _snackbarMessage = MutableStateFlow<String?>(null)
     val snackbarMessage = _snackbarMessage.asStateFlow()
 
-    private var initialUri: String? = null
+    private val _currentBookId = MutableStateFlow<String?>(null)
     private var currentSelectedText = ""
     private var pendingJumpLocator: String? = null
     private var pendingHighlightLocator: Locator? = null
 
+    val bookmarksList: StateFlow<List<HighlightEntity>> = _currentBookId.filterNotNull()
+        .flatMapLatest { id -> highlightDao.getHighlightsForBook(id) }
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
     // Highlights Flow
     val currentBookHighlights: StateFlow<List<Decoration>> = combine(
-        _publication.filterNotNull(),
-        isEinkEnabled
-    ) { pub, isEink -> Pair(pub, isEink) }.flatMapLatest { (pub, isEink) ->
-        highlightDao.getHighlightsForBook(initialUri ?: "")
-            .map { entities ->
-                entities.map { entity ->
+        bookmarksList, isEinkEnabled
+    ) { highlights, isEink ->
+        highlights.mapNotNull { entity ->
+            try {
+                val locator = Locator.fromJSON(JSONObject(entity.locatorJson))
+                if (locator != null) {
                     Decoration(
                         id = entity.id.toString(),
-                        locator = Locator.fromJSON(JSONObject(entity.locatorJson))!!,
+                        locator = locator,
                         style = Decoration.Style.Highlight(tint = if (isEink) Color.LTGRAY else entity.color)
                     )
-                }
-            }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+                } else null
+            } catch (_: Exception) { null }
+        }
+    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    val bookmarksList: StateFlow<List<HighlightEntity>> = _publication.filterNotNull()
-        .flatMapLatest { highlightDao.getHighlightsForBook(initialUri ?: "") }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // --- INITIALIZATION ---
 
-    /**
-     * Sets the initial location for the book to open at.
-     *
-     * @param json The JSON string representation of the Locator.
-     */
     fun setInitialLocation(json: String?) { this.pendingJumpLocator = json }
 
-    /**
-     * Called when a file is selected to be opened.
-     * Initializes the book, loads preferences, and sets up the initial state.
-     *
-     * @param uri The URI of the selected file.
-     */
     fun onFileSelected(uri: Uri) {
         _bookSearchQuery.value = ""
         _searchResults.value = emptyList()
@@ -242,12 +195,12 @@ class ReaderViewModel @Inject constructor(
             _bookAiEnabled.value = !isGlobalOffline
         }
 
-        initialUri = uri.toString()
+        _currentBookId.value = uri.toString()
         viewModelScope.launch {
             bookDao.updateLastRead(uri.toString(), System.currentTimeMillis())
             val book = bookDao.getBookByUri(uri.toString())
             val targetJson = pendingJumpLocator ?: book?.lastLocationJson
-            val locator = targetJson?.let { try { Locator.fromJSON(JSONObject(it)) } catch (e: Exception) { null } }
+            val locator = targetJson?.let { try { Locator.fromJSON(JSONObject(it)) } catch (_: Exception) { null } }
             _initialLocator.value = locator
             val pub = readiumManager.openEpubFromUri(uri)
             _publication.value = pub
@@ -257,32 +210,13 @@ class ReaderViewModel @Inject constructor(
 
     // --- SETTINGS ACTIONS ---
 
-    /**
-     * Toggles the visibility of the reader settings overlay.
-     */
     fun toggleReaderSettings() { _showReaderSettings.value = !_showReaderSettings.value }
-
-    /**
-     * Dismisses the reader settings overlay.
-     */
     fun dismissReaderSettings() { _showReaderSettings.value = false }
-
-    /**
-     * Toggles the AI features for the current book.
-     *
-     * @param enabled True to enable AI features, false otherwise.
-     */
     fun toggleBookAi(enabled: Boolean) { _bookAiEnabled.value = enabled }
-
 
 
     // --- NEW: Save All Preferences (For "Save" button) ---
 
-    /**
-     * Saves all reader preferences at once.
-     *
-     * @param newPrefs The new EpubPreferences object containing the settings to save.
-     */
     fun savePreferences(newPrefs: EpubPreferences) = viewModelScope.launch {
         settingsRepo.updateReaderPreferences(
             theme = newPrefs.theme?.toString()?.lowercase(),
@@ -291,27 +225,51 @@ class ReaderViewModel @Inject constructor(
             textAlign = newPrefs.textAlign?.toString()?.lowercase(),
             publisherStyles = newPrefs.publisherStyles,
             letterSpacing = newPrefs.letterSpacing,
+            lineHeight = newPrefs.lineHeight,
             paraSpacing = newPrefs.paragraphSpacing,
             marginSide = newPrefs.pageMargins
-            // Add top/bottom here if your SettingsRepo implementation supports distinct keys
+        )
+    }
+
+    // FIX: Using Array<Any?> to prevent intersection type errors
+    // FIX: Using safe cast (as?) and defaults (?:) to prevent NullPointerException
+    private fun buildEpubPreferences(params: Array<Any?>): EpubPreferences {
+        // Safe unpacking with defaults
+        val themeStr = (params[0] as? String) ?: "light"
+        val fontStr = params[1] as? String // Nullable is okay
+        val fontSizeVal = (params[2] as? Double) ?: 1.0
+        val alignStr = (params[3] as? String) ?: "start"
+
+        // Correct Index Mapping based on combine() order above:
+        // 4 is LineHeight (Double), NOT PubStyles (Boolean)
+        val lineht = (params[4] as? Double) ?: 1.2
+        val pubStyles = (params[5] as? Boolean) ?: true
+        val letterSp = (params[6] as? Double)
+        val paraSp = (params[7] as? Double)
+        val marginSide = (params[8] as? Double) ?: 1.0
+
+        val rTheme = when(themeStr) { "dark" -> Theme.DARK; "sepia" -> Theme.SEPIA; else -> Theme.LIGHT }
+        val rFont = fontStr?.let { FontFamily(it) }
+        val rAlign = when(alignStr) { "left" -> TextAlign.LEFT; "justify" -> TextAlign.JUSTIFY; else -> TextAlign.START }
+
+        return EpubPreferences(
+            theme = rTheme,
+            fontSize = fontSizeVal,
+            publisherStyles = pubStyles,
+            fontFamily = if (!pubStyles) rFont else null,
+            textAlign = if (!pubStyles) rAlign else null,
+            letterSpacing = if (!pubStyles) letterSp else null,
+            paragraphSpacing = if (!pubStyles) paraSp else null,
+            pageMargins = if (!pubStyles) marginSide else null,
+            lineHeight = if (!pubStyles) lineht else null
         )
     }
 
     // --- RECAP & AI ACTIONS ---
 
-    /**
-     * Shows the confirmation dialog for generating a recap.
-     */
     fun onRecapClicked() { _showRecapConfirmation.value = true }
-
-    /**
-     * Dismisses the recap confirmation dialog.
-     */
     fun dismissRecapConfirmation() { _showRecapConfirmation.value = false }
 
-    /**
-     * Generates a quick recap of the current book context using AI.
-     */
     fun getQuickRecap() {
         if (!_bookAiEnabled.value) return
         _showRecapConfirmation.value = false
@@ -320,8 +278,8 @@ class ReaderViewModel @Inject constructor(
         viewModelScope.launch {
             val title = _publication.value?.metadata?.title ?: "Unknown Book"
             val currentContext = "Current Position: ${_currentPageInfo.value}"
-            val highlights = highlightDao.getHighlightsForBook(initialUri ?: "")
-                .first() // Get current snapshot
+            val highlights = highlightDao.getHighlightsForBook(_currentBookId.value ?: "")
+                .first()
                 .take(10)
                 .joinToString("\n") { "- ${it.text}" }
             val summary = aiRepository.generateRecap(title, highlights, currentContext)
@@ -330,12 +288,9 @@ class ReaderViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Saves the generated recap as a highlight in the book.
-     */
     fun saveRecapAsHighlight() {
         val summary = _recapText.value ?: return
-        val currentUri = initialUri ?: return
+        val currentUri = _currentBookId.value ?: return
         val locator = _currentLocator.value ?: return
         val isEink = isEinkEnabled.value
 
@@ -353,24 +308,13 @@ class ReaderViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Dismisses the recap result.
-     */
     fun dismissRecapResult() { _recapText.value = null }
 
 
     // --- NAVIGATION ---
 
-    /**
-     * Toggles the visibility of the Table of Contents (TOC).
-     */
     fun toggleToc() { _showToc.value = !_showToc.value }
 
-    /**
-     * Handles selection of an item from the Table of Contents.
-     *
-     * @param link The link associated with the selected TOC item.
-     */
     fun onTocItemSelected(link: Link) {
         val currentHref = _currentLocator.value?.href.toString().substringBefore('#')
         val linkHref = link.href.toString().substringBefore('#')
@@ -382,21 +326,9 @@ class ReaderViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Toggles the visibility of the search interface.
-     */
     fun toggleSearch() { if (_showSearch.value) { _bookSearchQuery.value = ""; _searchResults.value = emptyList() }; _showSearch.value = !_showSearch.value }
-
-    /**
-     * Toggles the visibility of the highlights list.
-     */
     fun toggleHighlights() { _showHighlights.value = !_showHighlights.value }
 
-    /**
-     * Searches for a query string within the book.
-     *
-     * @param query The text to search for.
-     */
     fun searchInBook(query: String) {
         val pub = _publication.value ?: return
         val sanitized = query.filter { !it.isISOControl() }.trim()
@@ -416,52 +348,24 @@ class ReaderViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Handles clicking on a search result.
-     *
-     * @param l The locator of the search result.
-     */
     fun onSearchResultClicked(l: Locator) { viewModelScope.launch { _showSearch.value=false; _jumpEvent.emit(l); _bookSearchQuery.value=""; _searchResults.value=emptyList() } }
 
-    /**
-     * Handles clicking on a highlight.
-     *
-     * @param h The highlight entity clicked.
-     */
-    fun onHighlightClicked(h: HighlightEntity) { viewModelScope.launch { try{ val l=Locator.fromJSON(JSONObject(h.locatorJson)); if(l!=null){ _showHighlights.value=false; _jumpEvent.emit(l) } }catch(e:Exception){} } }
+    fun onHighlightClicked(h: HighlightEntity) { viewModelScope.launch { try{ val l=Locator.fromJSON(JSONObject(h.locatorJson)); if(l!=null){ _showHighlights.value=false; _jumpEvent.emit(l) } }catch(_:Exception){} } }
 
-    /**
-     * Updates the current reading progress.
-     *
-     * @param l The current locator.
-     */
     fun updateProgress(l: Locator) {
         _currentLocator.value = l
         val pos = l.locations.position?:0; val prog = l.locations.totalProgression?:0.0; val pct = (prog*100).toInt()
         _currentPageInfo.value = if(pos>0) "Page $pos ($pct%)" else "$pct% completed"
-        val u = initialUri?:return
+        val u = _currentBookId.value?:return
         viewModelScope.launch { bookDao.updateLastLocation(u, l.toJSON().toString()); bookDao.updateProgress(u, prog) }
     }
 
-    /**
-     * Closes the current book and resets state.
-     */
     fun closeBook() { viewModelScope.launch { readiumManager.closePublication(); _publication.value=null; _currentLocator.value=null; _bookSearchQuery.value=""; _searchResults.value=emptyList(); _showHighlights.value=false } }
 
-    /**
-     * Prepares to add a highlight at the specified locator.
-     *
-     * @param l The locator where the highlight should be added.
-     */
     fun prepareHighlight(l: Locator) { pendingHighlightLocator = l; _showTagSelector.value = true }
 
-    /**
-     * Saves the pending highlight with the selected tag.
-     *
-     * @param tag The tag to associate with the highlight.
-     */
     fun saveHighlightWithTag(tag: String) {
-        val l = pendingHighlightLocator?:return; val u = initialUri?:return; val e = isEinkEnabled.value
+        val l = pendingHighlightLocator?:return; val u = _currentBookId.value?:return; val e = isEinkEnabled.value
         viewModelScope.launch {
             highlightDao.insertHighlight(
                 HighlightEntity(publicationId = u, locatorJson = l.toJSON().toString(), text = l.text.highlight?:"Selected", color = if(e) Color.DKGRAY else Color.YELLOW, tag = tag)
@@ -470,40 +374,18 @@ class ReaderViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Deletes a highlight by its ID.
-     *
-     * @param id The ID of the highlight to delete.
-     */
     fun deleteHighlight(id: Long) { viewModelScope.launch { highlightDao.deleteHighlightById(id) } }
-
-    /**
-     * Dismisses the tag selector dialog.
-     */
     fun dismissTagSelector() { _showTagSelector.value = false; pendingHighlightLocator = null }
 
-    /**
-     * Handles text selection in the reader.
-     *
-     * @param t The selected text.
-     */
     fun onTextSelected(t: String) { currentSelectedText = t; _isBottomSheetVisible.value = true }
 
-    /**
-     * Triggers the "Explain" AI action for the selected text.
-     */
     fun onActionExplain() {
         _isDictionaryLookup.value = false
         _isDictionaryLoading.value = false
-
         if (!_bookAiEnabled.value) return
-        viewModelScope.launch { performAiAction("Thinking...") {
-            aiRepository.explainContext(currentSelectedText) } }
+        viewModelScope.launch { performAiAction("Thinking...") { aiRepository.explainContext(currentSelectedText) } }
     }
 
-    /**
-     * Triggers the "Who is this?" AI action for the selected text.
-     */
     fun onActionWhoIsThis() {
         _isDictionaryLookup.value = false
         _isDictionaryLoading.value = false
@@ -511,25 +393,16 @@ class ReaderViewModel @Inject constructor(
         viewModelScope.launch { performAiAction("Investigating...") { aiRepository.whoIsThis(currentSelectedText, _publication.value?.metadata?.title?:"", "") } }
     }
 
-    /**
-     * Triggers the "Visualize" AI action for the selected text.
-     */
     fun onActionVisualize() {
         _isDictionaryLookup.value = false
         _isDictionaryLoading.value = false
         if (!_bookAiEnabled.value) return
-         viewModelScope.launch { performAiAction("Drawing...") { aiRepository.visualizeText(currentSelectedText) }; _isImageResponse.value = true }
+        viewModelScope.launch { performAiAction("Drawing...") { aiRepository.visualizeText(currentSelectedText) }; _isImageResponse.value = true }
     }
     private suspend fun performAiAction(m: String, a: suspend () -> String) { _aiResponse.value = m; try { _aiResponse.value = a() } catch(e:Exception){ _aiResponse.value = e.message?:"" } }
 
-    /**
-     * Dismisses the recap view.
-     */
     fun dismissRecap() { _recapText.value = null }
 
-    /**
-     * Dismisses the bottom sheet.
-     */
     fun dismissBottomSheet() {
         _isBottomSheetVisible.value = false
         clearAiState()
@@ -541,64 +414,38 @@ class ReaderViewModel @Inject constructor(
         _isDictionaryLookup.value = false
         _isDictionaryLoading.value = false
     }
-    /**
-     * Clears the current snackbar message.
-     */
+
     fun clearSnackbar() { _snackbarMessage.value = null }
 
     //Dictionary
-
-
-    /**
-     * Looks up a word in the dictionary.
-     *
-     * @param word The word to lookup.
-     * @param context The context.
-     */
-    fun lookupWord(word: String, context: Context) {
+    fun lookupWord(word: String) {
         val trimmedWord = word.trim()
-
-        // GUARDRAIL: Limit to 5 words or 50 characters
         val wordCount = trimmedWord.split(Regex("\\s+")).size
         if (wordCount > 5 || trimmedWord.length > 50) {
             _isBottomSheetVisible.value = true
-            _isDictionaryLookup.value = true // Keep as dictionary style for consistency
+            _isDictionaryLookup.value = true
             _isDictionaryLoading.value = false
             _aiResponse.value = "Selection too long for dictionary. Please select a single word, or use 'Ask AI' for sentences."
             return
         }
         viewModelScope.launch {
-
-
-            // 1. Fetch the setting from DataStore (Flow)
-            // We use .first() to get the current snapshot of the preference
             val isEmbedded = settingsRepo.getUseEmbeddedDictionary().first()
-
-
             _isDictionaryLookup.value = true
             var definition: String? = null
             if (isEmbedded) {
-                // Open bottom sheet and show loading state
                 _isBottomSheetVisible.value = true
                 _aiResponse.value = "Searching device dictionaries..."
                 _isDictionaryLoading.value = true
-
                 try {
-                    // 2. Delegate to DictionaryRepository ( StarDict --> Local JSON)
                     definition = dictionaryRepository.getDefinition(word)
-
-
-                    // 3. Update UI (Crucial: Update response BEFORE stopping loader)
                     if (definition != null) {
                         _aiResponse.value = definition
                     } else {
                         _aiResponse.value = "No definition found for '$word' in StarDict or local JSON dictionary."
                     }
-
                     _isDictionaryLoading.value = false
                 } catch (e: Exception) {
-
-                    _aiResponse.value = "Error searching local dictionaries."
+                    _aiResponse.value = "Error searching local dictionaries. error is ${e.message}"
                 } finally {
                     _isDictionaryLoading.value = false
                 }
@@ -606,11 +453,8 @@ class ReaderViewModel @Inject constructor(
                 _isBottomSheetVisible.value = true
                 _aiResponse.value = "Searching embedded directory..."
                 _isDictionaryLoading.value = true
-                //  Json Directory
-
-                 definition = dictionaryRepository.getjsonDefinition(word)
+                definition = dictionaryRepository.getjsonDefinition(word)
                 if (definition != null) {
-
                     _aiResponse.value = definition
                 } else {
                     _aiResponse.value = "No definition found for '$word' in embedded json dictionary."
@@ -618,6 +462,5 @@ class ReaderViewModel @Inject constructor(
                 _isDictionaryLoading.value = false
             }
         }
-
     }
 }

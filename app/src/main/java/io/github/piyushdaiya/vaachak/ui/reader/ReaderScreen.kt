@@ -23,13 +23,12 @@
 package io.github.piyushdaiya.vaachak.ui.reader
 
 import android.app.Activity
-import android.util.Log
+//import android.util.Log
 import android.view.ActionMode
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.widget.FrameLayout
-import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.*
@@ -53,6 +52,8 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
 import io.github.piyushdaiya.vaachak.ui.reader.components.AiBottomSheet
 import io.github.piyushdaiya.vaachak.ui.reader.components.BookHighlightsOverlay
 import io.github.piyushdaiya.vaachak.ui.reader.components.BookSearchOverlay
@@ -67,8 +68,7 @@ import org.readium.r2.navigator.epub.EpubNavigatorFragment
 import org.readium.r2.shared.ExperimentalReadiumApi
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.util.AbsoluteUrl
-// --- FIX: Correct Import ---
-import org.readium.r2.navigator.epub.EpubPreferences
+
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalReadiumApi::class)
 @Composable
@@ -83,7 +83,6 @@ fun ReaderScreen(
 
     val publication by viewModel.publication.collectAsState()
     val isEink by viewModel.isEinkEnabled.collectAsState()
-    val isOfflineMode by viewModel.isOfflineModeEnabled.collectAsState()
     val isAiEnabled by viewModel.isAiEnabled.collectAsState()
 
     val showToc by viewModel.showToc.collectAsState()
@@ -106,7 +105,7 @@ fun ReaderScreen(
     val isRecapLoading by viewModel.isRecapLoading.collectAsState()
 
     var showDeleteDialogId by remember { mutableStateOf<Long?>(null) }
-    var isNavigatorReady by remember { mutableStateOf(false) }
+
 
     val isBottomSheetVisible by viewModel.isBottomSheetVisible.collectAsState()
     val aiResponse by viewModel.aiResponse.collectAsState()
@@ -148,12 +147,16 @@ fun ReaderScreen(
 
     // Apply Preferences
     LaunchedEffect(epubPreferences, currentNavigatorFragment) {
-        currentNavigatorFragment?.submitPreferences(epubPreferences)
+        if (currentNavigatorFragment?.view != null) {
+            currentNavigatorFragment?.submitPreferences(epubPreferences)
+        }
     }
-
-    LaunchedEffect(savedHighlights, isNavigatorReady) {
+    // Main Highlight Application (Reactive)
+    LaunchedEffect(savedHighlights, currentNavigatorFragment) {
         val navigator = currentNavigatorFragment ?: return@LaunchedEffect
-        if (isNavigatorReady) navigator.applyDecorations(savedHighlights, "user_highlights")
+        if (navigator.view != null) {
+            navigator.applyDecorations(savedHighlights, "user_highlights")
+        }
     }
     LaunchedEffect(initialUri, initialLocatorJson) {
         if (initialUri != null) {
@@ -193,22 +196,53 @@ fun ReaderScreen(
         }
     }
 
+    // Fragment Lifecycle & Decoration Re-application
     DisposableEffect(currentNavigatorFragment) {
         val navigator = currentNavigatorFragment ?: return@DisposableEffect onDispose {}
         val fm = activity.supportFragmentManager
-        val callbacks = object : FragmentManager.FragmentLifecycleCallbacks() {
-            override fun onFragmentStarted(fm: FragmentManager, f: Fragment) {
-                if (f == navigator) { isNavigatorReady = true; navigator.addDecorationListener("user_highlights", decorationListener) }
+
+        val lifecycleObserver = object : DefaultLifecycleObserver {
+            override fun onResume(owner: LifecycleOwner) {
+                // FIX: Must use scope.launch because applyDecorations is suspend
+                scope.launch {
+                    if (navigator.isAdded && navigator.view != null) {
+                        navigator.applyDecorations(savedHighlights, "user_highlights")
+                    }
+                }
             }
         }
-        if (navigator.isAdded && !navigator.isDetached) {
-            isNavigatorReady = true
+
+        val fmCallbacks = object : FragmentManager.FragmentLifecycleCallbacks() {
+            override fun onFragmentStarted(fm: FragmentManager, f: Fragment) {
+                if (f == navigator) {
+                    navigator.addDecorationListener("user_highlights", decorationListener)
+                    f.lifecycle.addObserver(lifecycleObserver)
+                    // FIX: Must use scope.launch
+                    scope.launch {
+                        navigator.applyDecorations(savedHighlights, "user_highlights")
+                    }
+                }
+            }
+        }
+
+        if (navigator.isAdded) {
             navigator.addDecorationListener("user_highlights", decorationListener)
-        } else { fm.registerFragmentLifecycleCallbacks(callbacks, false) }
+            navigator.lifecycle.addObserver(lifecycleObserver)
+            // FIX: Must use scope.launch
+            scope.launch {
+                navigator.applyDecorations(savedHighlights, "user_highlights")
+            }
+        }
+        fm.registerFragmentLifecycleCallbacks(fmCallbacks, false)
+
         onDispose {
-            fm.unregisterFragmentLifecycleCallbacks(callbacks)
-            if (navigator.isAdded) { try { navigator.removeDecorationListener(decorationListener) } catch (e: Exception) {} }
-            isNavigatorReady = false
+            fm.unregisterFragmentLifecycleCallbacks(fmCallbacks)
+            if (navigator.isAdded) {
+                try {
+                    navigator.removeDecorationListener(decorationListener)
+                    navigator.lifecycle.removeObserver(lifecycleObserver)
+                } catch (_: Exception) {}
+            }
         }
     }
 
@@ -232,7 +266,7 @@ fun ReaderScreen(
                     when (item?.itemId) {
                         101 -> viewModel.onTextSelected(text)
                         102 -> viewModel.prepareHighlight(locator)
-                        103 -> viewModel.lookupWord(text, activity)
+                        103 -> viewModel.lookupWord(text)
                     }
                     mode?.finish()
                 }
@@ -300,8 +334,8 @@ fun ReaderScreen(
             if (showRecapConfirmation) {
                 AlertDialog(
                     onDismissRequest = { viewModel.dismissRecapConfirmation()
-                                       viewModel.dismissRecap()
-                                       },
+                        viewModel.dismissRecap()
+                    },
                     title = { Text("Quick Recap") },
                     text = { Text("Would you like to generate a quick recap summary of the book so far?") },
                     confirmButton = { TextButton(onClick = { viewModel.getQuickRecap() }) { Text("Yes", fontWeight = FontWeight.Bold) } },
@@ -359,8 +393,8 @@ fun ReaderScreen(
 
             if (showDeleteDialogId != null) {
                 AlertDialog(onDismissRequest = { showDeleteDialogId = null
-                                                viewModel.dismissRecap()
-                                               }, title = { Text("Delete Highlight?") }, text = { Text("This action cannot be undone.") }, confirmButton = { TextButton(onClick = { viewModel.deleteHighlight(showDeleteDialogId!!); showDeleteDialogId = null }) { Text("Delete", color = Color.Red) } }, dismissButton = { TextButton(onClick = { showDeleteDialogId = null }) { Text("Cancel") } }, modifier = Modifier.zIndex(4f))
+                    viewModel.dismissRecap()
+                }, title = { Text("Delete Highlight?") }, text = { Text("This action cannot be undone.") }, confirmButton = { TextButton(onClick = { viewModel.deleteHighlight(showDeleteDialogId!!); showDeleteDialogId = null }) { Text("Delete", color = Color.Red) } }, dismissButton = { TextButton(onClick = { showDeleteDialogId = null }) { Text("Cancel") } }, modifier = Modifier.zIndex(4f))
             }
         }
     }

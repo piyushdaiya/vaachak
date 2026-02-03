@@ -166,7 +166,7 @@ class BookshelfViewModel @Inject constructor(
                 _snackbarMessage.value = "⚠️ Book is already in your library"
                 return@launch
             }
-            try { context.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (e: Exception) { }
+            try { context.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: Exception) { }
 
             val publication = readiumManager.openEpubFromUri(uri)
             if (publication != null) {
@@ -176,7 +176,7 @@ class BookshelfViewModel @Inject constructor(
                 try {
                     val bitmap = readiumManager.getPublicationCover(publication)
                     if (bitmap != null) savedCoverPath = saveCoverToInternalStorage(bitmap, title)
-                } catch (e: Exception) { }
+                } catch (_: Exception) { }
 
                 val newBook = BookEntity(title = title, author = author, uriString = uri.toString(), coverPath = savedCoverPath, addedDate = System.currentTimeMillis(), lastRead = System.currentTimeMillis(), progress = 0.0)
                 bookDao.insertBook(newBook)
@@ -198,7 +198,8 @@ class BookshelfViewModel @Inject constructor(
      *
      * @param id The ID of the book to delete.
      */
-    fun deleteBook(id: Long) = viewModelScope.launch { bookDao.deleteBook(id) }
+
+    fun deleteBookByUri(uri: String) = viewModelScope.launch { bookDao.deleteBookByUri(uri) }
 
     /**
      * Generates a quick recap for a book using AI.

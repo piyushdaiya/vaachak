@@ -1,6 +1,7 @@
 # 📲 Installation Instructions
 
 Since Vaachak is currently in **Beta** and not yet on the Google Play Store, you will need to install the APK file manually ("side-load").
+You can download latest release from [Releases Page](https://github.com/piyushdaiya/vaachak/releases/)
 
 Follow one of the methods below to install **Vaachak v2.0**.
 
@@ -26,13 +27,13 @@ This method requires a PC with [Android Platform Tools](https://developer.androi
 
     **Option A: Clean Install**
     ```bash
-    adb install app-release.apk
+    adb install Vaachak-release.apk
     ```
 
     **Option B: Upgrade (Retain Data)**
     *Use this only if upgrading from a previous **Release** build.*
     ```bash
-    adb install -r app-release.apk
+    adb install -r Vaachak-release.apk
     ```
 
 ---
@@ -40,10 +41,10 @@ This method requires a PC with [Android Platform Tools](https://developer.androi
 ## Method 2: Direct Install (No PC Required)
 This is the easiest method for most users.
 
-1.  **Download** the `app-release.apk` file directly on your phone (or transfer it via USB/Drive).
+1.  **Download** the `Vaachak-release.apk` file directly on your phone (or transfer it via USB/Drive).
 2.  Open your phone's **File Manager** app.
 3.  Navigate to your **Downloads** folder.
-4.  Tap on `app-release.apk`.
+4.  Tap on `Vaachak-release.apk`.
 5.  If prompted with *"For your security, your phone is not allowed to install unknown apps from this source"*:
     * Tap **Settings**.
     * Toggle **Allow from this source**.

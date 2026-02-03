@@ -29,7 +29,8 @@
 # DO NOT UPLOAD API KEYS
 # Assuming your keys are here. If they are in local.properties, they are already ignored above.
 AppConfig.kt
-
+future_roadmap.md
+assemblyai.md
 *.txt
 
 # Gradle internals and caches

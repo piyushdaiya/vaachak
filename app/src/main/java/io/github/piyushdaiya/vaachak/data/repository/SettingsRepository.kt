@@ -66,6 +66,7 @@ class SettingsRepository @Inject constructor(
 
         // Layout Sliders
         val READER_LETTER_SPACING = doublePreferencesKey("reader_letter_spacing")
+        val READER_LINE_HEIGHT = doublePreferencesKey("reader_line_height")
         val READER_PARAGRAPH_SPACING = doublePreferencesKey("reader_para_spacing")
         val READER_MARGIN_SIDE = doublePreferencesKey("reader_margin_side")
         val READER_MARGIN_TOP = doublePreferencesKey("reader_margin_top")
@@ -98,6 +99,7 @@ class SettingsRepository @Inject constructor(
     val readerPublisherStyles: Flow<Boolean> = dataStore.data.map { it[READER_PUBLISHER_STYLES] ?: true } // Default to True
 
     val readerLetterSpacing: Flow<Double?> = dataStore.data.map { it[READER_LETTER_SPACING] }
+    val readerLineHeight: Flow<Double?> = dataStore.data.map { it[READER_LINE_HEIGHT] }
     val readerParaSpacing: Flow<Double?> = dataStore.data.map { it[READER_PARAGRAPH_SPACING] }
     val readerMarginSide: Flow<Double> = dataStore.data.map { it[READER_MARGIN_SIDE] ?: 1.0 }
     val readerMarginTop: Flow<Double> = dataStore.data.map { it[READER_MARGIN_TOP] ?: 1.0 }
@@ -195,6 +197,7 @@ class SettingsRepository @Inject constructor(
         theme: String? = null,
         publisherStyles: Boolean? = null,
         letterSpacing: Double? = null,
+        lineHeight: Double? = null,
         paraSpacing: Double? = null,
         marginSide: Double? = null,
         marginTop: Double? = null,
@@ -207,6 +210,7 @@ class SettingsRepository @Inject constructor(
             theme?.let { prefs[READER_THEME] = it }
             publisherStyles?.let { prefs[READER_PUBLISHER_STYLES] = it }
             letterSpacing?.let { prefs[READER_LETTER_SPACING] = it }
+            lineHeight?.let { prefs[READER_LINE_HEIGHT] = it }
             paraSpacing?.let { prefs[READER_PARAGRAPH_SPACING] = it }
             marginSide?.let { prefs[READER_MARGIN_SIDE] = it }
             marginTop?.let { prefs[READER_MARGIN_TOP] = it }

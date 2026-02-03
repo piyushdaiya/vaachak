@@ -130,7 +130,7 @@ fun BookshelfScreen(
                                     showRecap = !isOfflineMode, // CONDITION
                                     isLoadingRecap = loadingUri == book.uriString,
                                     onClick = { onBookClick(book.uriString) },
-                                    onDelete = { viewModel.deleteBook(book.id) },
+                                    onDelete = { viewModel.deleteBookByUri(book.uriString) },
                                     onRecapClick = { viewModel.getQuickRecap(book) }
                                 )
                             }
@@ -162,7 +162,7 @@ fun BookshelfScreen(
                                         showRecap = false, // Never show summary on main library list (design choice)
                                         isLoadingRecap = loadingUri == book.uriString,
                                         onClick = { onBookClick(book.uriString) },
-                                        onDelete = { viewModel.deleteBook(book.id) },
+                                        onDelete = { viewModel.deleteBookByUri(book.uriString) },
                                         onRecapClick = { viewModel.getQuickRecap(book) }
                                     )
                                 }

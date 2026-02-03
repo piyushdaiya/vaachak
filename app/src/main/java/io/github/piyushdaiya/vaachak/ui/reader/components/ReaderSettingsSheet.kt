@@ -183,7 +183,7 @@ fun ReaderSettingsSheet(
                         SettingsSectionTitle("Font Family")
                         Spacer(Modifier.height(4.dp))
                         FontFamilyGrid(draftPrefs.fontFamily, isEink) { family ->
-                            draftPrefs = draftPrefs.copy(fontFamily = family)
+                            draftPrefs = draftPrefs.copy(fontFamily = family, publisherStyles = false)
                         }
                     }
 
@@ -194,7 +194,7 @@ fun ReaderSettingsSheet(
                             Text("A", fontSize = 12.sp)
                             Slider(
                                 value = (draftPrefs.fontSize ?: 1.0).toFloat(),
-                                onValueChange = { draftPrefs = draftPrefs.copy(fontSize = it.toDouble()) },
+                                onValueChange = { draftPrefs = draftPrefs.copy(fontSize = it.toDouble(), publisherStyles = false) },
                                 valueRange = 0.5f..3.0f,
                                 modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
                                 colors = SliderDefaults.colors(thumbColor = primaryColor, activeTrackColor = primaryColor)
@@ -231,7 +231,7 @@ fun ReaderSettingsSheet(
                 } else {
                     // ================= LAYOUT TAB =================
 
-                    val isCustom = draftPrefs.publisherStyles == true
+                    val isCustom = draftPrefs.publisherStyles == false
                     val alpha = if (isCustom) 1f else 0.4f
 
                     item {
@@ -246,13 +246,13 @@ fun ReaderSettingsSheet(
                             val align = draftPrefs.textAlign?.toString() ?: "START"
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 AlignmentOption(Icons.AutoMirrored.Filled.FormatAlignLeft, "Auto", align == "START", primaryColor, isCustom) {
-                                    draftPrefs = draftPrefs.copy(textAlign = org.readium.r2.navigator.preferences.TextAlign.START)
+                                    draftPrefs = draftPrefs.copy(textAlign = org.readium.r2.navigator.preferences.TextAlign.START, publisherStyles = false)
                                 }
                                 AlignmentOption(Icons.AutoMirrored.Filled.FormatAlignLeft, "Left", align == "LEFT", primaryColor, isCustom) {
-                                    draftPrefs = draftPrefs.copy(textAlign = org.readium.r2.navigator.preferences.TextAlign.LEFT)
+                                    draftPrefs = draftPrefs.copy(textAlign = org.readium.r2.navigator.preferences.TextAlign.LEFT, publisherStyles = false)
                                 }
                                 AlignmentOption(Icons.Default.FormatAlignJustify, "Justify", align == "JUSTIFY", primaryColor, isCustom) {
-                                    draftPrefs = draftPrefs.copy(textAlign = org.readium.r2.navigator.preferences.TextAlign.JUSTIFY)
+                                    draftPrefs = draftPrefs.copy(textAlign = org.readium.r2.navigator.preferences.TextAlign.JUSTIFY, publisherStyles = false)
                                 }
                             }
                         }
@@ -264,13 +264,13 @@ fun ReaderSettingsSheet(
                             SettingsSectionTitle("Spacing")
 
                             LabelledSlider("Line Height", (draftPrefs.lineHeight ?: 1.0).toFloat(), 1.0f..2.5f, "x", primaryColor, isCustom) {
-                                draftPrefs = draftPrefs.copy(lineHeight = it.toDouble())
+                                draftPrefs = draftPrefs.copy(lineHeight = it.toDouble(), publisherStyles = false)
                             }
                             LabelledSlider("Paragraph Gap", (draftPrefs.paragraphSpacing ?: 0.5).toFloat(), 0f..2.0f, "em", primaryColor, isCustom) {
-                                draftPrefs = draftPrefs.copy(paragraphSpacing = it.toDouble())
+                                draftPrefs = draftPrefs.copy(paragraphSpacing = it.toDouble(), publisherStyles = false)
                             }
                             LabelledSlider("Letter Spacing", (draftPrefs.letterSpacing ?: 0.0).toFloat(), 0f..0.5f, "em", primaryColor, isCustom) {
-                                draftPrefs = draftPrefs.copy(letterSpacing = it.toDouble())
+                                draftPrefs = draftPrefs.copy(letterSpacing = it.toDouble(), publisherStyles = false)
                             }
                         }
                     }
@@ -280,7 +280,7 @@ fun ReaderSettingsSheet(
                         Column(Modifier.alpha(alpha)) {
                             SettingsSectionTitle("Margins")
                             LabelledSlider("Sides", (draftPrefs.pageMargins ?: 1.0).toFloat(), 0.5f..3.0f, "x", primaryColor, isCustom) {
-                                draftPrefs = draftPrefs.copy(pageMargins = it.toDouble())
+                                draftPrefs = draftPrefs.copy(pageMargins = it.toDouble(), publisherStyles = false)
                             }
                             // Using standard margins logic assuming VM supports it
                             LabelledSlider("Top", 1.0f, 0.5f..3.0f, "x", primaryColor, isCustom) { /* VM Update needed */ }
@@ -302,8 +302,11 @@ fun ReaderSettingsSheet(
                                 Text("Disable to customize formatting", style = MaterialTheme.typography.bodySmall, color = Color.Gray, fontSize = 11.sp)
                             }
                             Switch(
-                                checked = isCustom,
-                                onCheckedChange = { draftPrefs = draftPrefs.copy(publisherStyles = it) },
+                                checked = !isCustom,
+                                onCheckedChange = { checked ->
+                                    // If Checked -> PublisherStyles = true
+                                    draftPrefs = draftPrefs.copy(publisherStyles = checked)
+                                },
                                 colors = SwitchDefaults.colors(checkedTrackColor = primaryColor),
                                 modifier = Modifier.scale(0.8f)
                             )
@@ -405,7 +408,8 @@ fun LayoutPreviewCard(prefs: EpubPreferences, isEink: Boolean, activeColor: Colo
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = "This is a sample paragraph to demonstrate layout changes.",
+                text = "This is a sample paragraph to demonstrate layout changes.\n" +
+                "You can adjust font size, line height, and margins to find your preferred reading experience." ,
                 textAlign = textAlign,
                 letterSpacing = letterSpacing,
                 lineHeight = lineHeight,
@@ -417,7 +421,8 @@ fun LayoutPreviewCard(prefs: EpubPreferences, isEink: Boolean, activeColor: Colo
             // Realtime Paragraph Spacing
             Spacer(Modifier.height(((prefs.paragraphSpacing ?: 0.5) * 16).dp))
             Text(
-                text = "Adjusting the 'Paragraph Gap' slider increases the space above this line.",
+                text = "Adjusting the 'Paragraph Gap' slider increases the space above this line.\n" +
+                        "Observe how the text reflows with each adjustment.",
                 textAlign = textAlign,
                 letterSpacing = letterSpacing,
                 lineHeight = lineHeight,

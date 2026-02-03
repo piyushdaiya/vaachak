@@ -39,6 +39,9 @@ interface BookDao {
     @Query("DELETE FROM books WHERE id = :id")
     suspend fun deleteBook(id: Long)
 
+    @Query("DELETE FROM books WHERE uriString = :uri")
+    suspend fun deleteBookByUri(uri: String)
+
     @Query("UPDATE books SET progress = :progress WHERE uriString = :uriString")
     suspend fun updateProgress(uriString: String, progress: Double)
 
