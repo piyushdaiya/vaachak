@@ -101,15 +101,15 @@ class AiRepository @Inject constructor(
      * @param prompt The text description for the image.
      * @return A Base64 encoded image string, or an error message.
      */
-    suspend fun visualizeText(prompt: String): String = withContext(Dispatchers.IO) {
-        try {
+    suspend fun visualizeText(prompt: String): String {
+        return try {
             // FIX 1: Referenced correct flow names from SettingsRepository
             val url = settingsRepo.cfUrl.first().trim()
             val token = settingsRepo.cfToken.first().trim()
 
             // FIX 2: Ensure we aren't sending empty requests
             if (url.isEmpty() || token.isEmpty()) {
-                return@withContext "Error: Cloudflare settings are missing."
+                throw Exception ("Error: Cloudflare settings are missing.")
             }
 
             val response = cloudflareApi.generateImage(

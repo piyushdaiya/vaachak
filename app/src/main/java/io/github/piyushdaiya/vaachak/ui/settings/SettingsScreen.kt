@@ -133,7 +133,7 @@ fun SettingsScreen(
                     shape = RoundedCornerShape(8.dp),
                     colors = if (isEinkEnabled) ButtonDefaults.filledTonalButtonColors(containerColor = Color.Black, contentColor = Color.White) else ButtonDefaults.filledTonalButtonColors()
                 ) {
-                    Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Save, contentDescription = "Save Settings", modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text("Save")
                 }

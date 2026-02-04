@@ -220,7 +220,7 @@ class ReaderViewModel @Inject constructor(
     fun savePreferences(newPrefs: EpubPreferences) = viewModelScope.launch {
         settingsRepo.updateReaderPreferences(
             theme = newPrefs.theme?.toString()?.lowercase(),
-            fontFamily = newPrefs.fontFamily?.toString(),
+            fontFamily = newPrefs.fontFamily?.name,
             fontSize = newPrefs.fontSize,
             textAlign = newPrefs.textAlign?.toString()?.lowercase(),
             publisherStyles = newPrefs.publisherStyles,
