@@ -109,7 +109,7 @@ class AiRepository @Inject constructor(
 
             // FIX 2: Ensure we aren't sending empty requests
             if (url.isEmpty() || token.isEmpty()) {
-                throw Exception ("Error: Cloudflare settings are missing.")
+                throw Exception ("Cloudflare settings are missing. url is $url, token is $token")
             }
 
             val response = cloudflareApi.generateImage(

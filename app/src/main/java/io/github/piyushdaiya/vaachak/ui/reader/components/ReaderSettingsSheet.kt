@@ -235,7 +235,6 @@ fun ReaderSettingsSheet(
                             theme = draftPrefs.theme ?: Theme.LIGHT,
                             readiumFontFamily = draftPrefs.fontFamily,
                             fontSizeScale = draftPrefs.fontSize ?: 1.0,
-                            isEink = isEink,
                             borderColor = primaryColor
                         )
                     }
@@ -269,7 +268,7 @@ fun ReaderSettingsSheet(
                     // ================= LAYOUT TAB =================
 
                     item {
-                        LayoutPreviewCard(draftPrefs, isEink, primaryColor)
+                        LayoutPreviewCard(draftPrefs,primaryColor)
                     }
 
                     item {
@@ -582,19 +581,41 @@ fun SettingsSectionTitle(title: String) {
 }
 
 @Composable
-fun LayoutPreviewCard(prefs: EpubPreferences, isEink: Boolean, activeColor: Color) {
+fun LayoutPreviewCard(prefs: EpubPreferences, activeColor: Color) {
+
     val textAlign = when(prefs.textAlign?.toString()) {
         "JUSTIFY" -> TextAlign.Justify
         "LEFT" -> TextAlign.Left
         else -> TextAlign.Start
     }
 
+    val theme = prefs.theme
+    val (bg, fg) = when(theme) {
+        Theme.DARK -> Color(0xFF121212) to Color(0xFFE0E0E0)
+        Theme.SEPIA -> Color(0xFFF5E6D3) to Color(0xFF5F4B32)
+        else -> Color.White to Color.Black
+    }
+    val readiumFontFamily = prefs.fontFamily
+    val rawName = readiumFontFamily?.name
+    val name = rawName?.lowercase() ?: ""
+
+    val previewFont = when {
+        name.contains("writer") -> IAWriterFamily
+        name.contains("dyslexic") -> OpenDyslexicFamily
+        name.contains("accessible") -> AccessibleDfaFamily
+        name.contains("mono") -> MonospaceFamily
+        name.contains("serif") && !name.contains("sans") -> FontFamily.Serif
+        name.contains("cursive") -> FontFamily.Cursive
+        name.contains("sans") -> FontFamily.SansSerif
+        else -> FontFamily.Default
+    }
+    val fontSizeScale = prefs.fontSize ?: 1.0
     val letterSpacing = (prefs.letterSpacing ?: 0.0).sp
     val lineHeight = (20 * (prefs.lineHeight ?: 1.0)).sp
     val sidePadding = (16 * (prefs.pageMargins ?: 1.0)).dp
 
     Card(
-        modifier = Modifier.fillMaxWidth().height(140.dp),
+        modifier = Modifier.fillMaxWidth().height(180.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha=0.3f)),
         border = BorderStroke(2.dp, activeColor.copy(alpha=0.6f))
     ) {
@@ -603,26 +624,30 @@ fun LayoutPreviewCard(prefs: EpubPreferences, isEink: Boolean, activeColor: Colo
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = "This is a sample paragraph to demonstrate layout changes.\n" +
-                        "You can adjust font size, line height, and margins to find your preferred reading experience." ,
+                text = "Adjusting the 'Paragraph Gap' slider increases the space above below line.\n" +
+                        "Observe how the text alignment changes with each adjustment.",
                 textAlign = textAlign,
                 letterSpacing = letterSpacing,
                 lineHeight = lineHeight,
-                style = MaterialTheme.typography.bodyMedium,
-                fontSize = 13.sp,
-                color = if(isEink) Color.Black else MaterialTheme.colorScheme.onSurface,
+                style = TextStyle(
+                    fontFamily = previewFont,
+                    fontSize = (16 * fontSizeScale).sp
+                ),
+                color = fg,
                 modifier = Modifier.padding(horizontal = sidePadding.coerceAtMost(40.dp))
             )
             Spacer(Modifier.height(((prefs.paragraphSpacing ?: 0.5) * 16).dp))
             Text(
                 text = "Adjusting the 'Paragraph Gap' slider increases the space above this line.\n" +
-                        "Observe how the text reflows with each adjustment.",
+                        "Observe how the text spacing changes with each adjustment.",
                 textAlign = textAlign,
                 letterSpacing = letterSpacing,
                 lineHeight = lineHeight,
-                style = MaterialTheme.typography.bodyMedium,
-                fontSize = 13.sp,
-                color = if(isEink) Color.Black else MaterialTheme.colorScheme.onSurface,
+                style = TextStyle(
+                    fontFamily = previewFont,
+                    fontSize = (16 * fontSizeScale).sp
+                ),
+                color = fg,
                 modifier = Modifier.padding(horizontal = sidePadding.coerceAtMost(40.dp))
             )
         }
@@ -634,7 +659,6 @@ fun ThemePreviewCard(
     theme: Theme,
     readiumFontFamily: ReadiumFontFamily?,
     fontSizeScale: Double,
-    isEink: Boolean,
     borderColor: Color
 ) {
     val (bg, fg) = when(theme) {
