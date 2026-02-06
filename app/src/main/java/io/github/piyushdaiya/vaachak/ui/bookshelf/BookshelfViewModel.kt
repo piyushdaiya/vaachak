@@ -110,7 +110,7 @@ class BookshelfViewModel @Inject constructor(
      */
     val filteredLibraryBooks: StateFlow<List<BookEntity>> =
         combine(allBooks, searchQuery, _sortOrder) { books, query, order ->
-            val filtered = books.filter { book -> book.progress <= 0.0 && book.title.contains(query, ignoreCase = true) }
+            val filtered = books.filter { book -> (book.progress <= 0.0 || book.progress >= 0.99) && book.title.contains(query, ignoreCase = true) }
             when (order) {
                 SortOrder.TITLE -> filtered.sortedBy { it.title }
                 SortOrder.AUTHOR -> filtered.sortedBy { it.author }
@@ -122,7 +122,7 @@ class BookshelfViewModel @Inject constructor(
      * A list of recently read books (progress > 0), sorted by last read time.
      */
     val recentBooks: StateFlow<List<BookEntity>> = allBooks.map { books ->
-        books.filter { it.progress > 0.0 }.sortedByDescending { it.lastRead }
+        books.filter { it.progress > 0.0 && it.progress < 0.99 }.sortedByDescending { it.lastRead }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // --- RECAP STATE ---

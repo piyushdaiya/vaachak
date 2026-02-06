@@ -354,7 +354,10 @@ class ReaderViewModel @Inject constructor(
 
     fun updateProgress(l: Locator) {
         _currentLocator.value = l
-        val pos = l.locations.position?:0; val prog = l.locations.totalProgression?:0.0; val pct = (prog*100).toInt()
+        val pos = l.locations.position?:0; val prog = l.locations.totalProgression?:0.0; var pct = (prog*100).toInt()
+        if (prog > 0.99) {
+            pct = 100
+        }
         _currentPageInfo.value = if(pos>0) "Page $pos ($pct%)" else "$pct% completed"
         val u = _currentBookId.value?:return
         viewModelScope.launch { bookDao.updateLastLocation(u, l.toJSON().toString()); bookDao.updateProgress(u, prog) }

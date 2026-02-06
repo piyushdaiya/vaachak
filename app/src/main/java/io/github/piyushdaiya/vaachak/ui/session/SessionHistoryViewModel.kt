@@ -73,35 +73,36 @@ class SessionHistoryViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoading.value = true
             val books = bookDao.getAllBooks().first()
-                .filter { it.progress > 0.0 }
+                .filter { it.progress > 0.0 && it.progress < 0.99 }
                 .sortedByDescending { it.id }
                 .take(5)
 
             _recentBooks.value = books
 
             books.forEach { book ->
-                launch {
-                    try {
-                        val highlights = highlightDao.getHighlightsForBook(book.uriString)
-                            .first()
-                            .take(10)
-                            .joinToString("\n") { it.text }
 
-                        val summary = aiRepository.getRecallSummary(
-                            bookTitle = book.title,
-                            highlightsContext = highlights
-                        )
+                    launch {
+                        try {
+                            val highlights = highlightDao.getHighlightsForBook(book.uriString)
+                                .first()
+                                .take(10)
+                                .joinToString("\n") { it.text }
 
-                        // Check setting before auto-saving
-                        if (settingsRepository.isAutoSaveRecapsEnabled.first()) {
-                            saveRecapAsHighlight(book, summary)
+                            val summary = aiRepository.getRecallSummary(
+                                bookTitle = book.title,
+                                highlightsContext = highlights
+                            )
+
+                            // Check setting before auto-saving
+                            if (settingsRepository.isAutoSaveRecapsEnabled.first()) {
+                                saveRecapAsHighlight(book, summary)
+                            }
+
+                            _recallMap.update { it + (book.title to summary) }
+                        } catch (e: Exception) {
+                            // Log error or update UI state
                         }
-
-                        _recallMap.update { it + (book.title to summary) }
-                    } catch (e: Exception) {
-                        // Log error or update UI state
                     }
-                }
             }
             _isLoading.value = false
         }

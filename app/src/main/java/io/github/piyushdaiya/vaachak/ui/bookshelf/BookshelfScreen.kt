@@ -391,9 +391,12 @@ fun BookCard(
                     )
 
                     if (book.progress > 0) {
+                        var pct = kotlin.math.round(book.progress* 100).toInt()
+                        if (book.progress > .99) pct = 100
+
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "${(book.progress * 100).toInt()}% read",
+                            text = "${pct}% read",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = if(isEink) Color.Black else MaterialTheme.colorScheme.primary,
