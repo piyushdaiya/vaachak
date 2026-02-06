@@ -22,8 +22,9 @@
 
 package io.github.piyushdaiya.vaachak.data.model
 
+import androidx.annotation.Keep
 import com.google.gson.annotations.SerializedName
-
+@Keep
 data class AiImageRequest(
     val prompt: String,
     val width: Int = 384,

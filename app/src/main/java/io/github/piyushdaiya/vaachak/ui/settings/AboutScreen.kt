@@ -67,8 +67,8 @@ fun AboutScreen(
             // 1. APP INFO
             Text("Vaachak", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.Black)
 
-            // --- UPDATED: Version 2.0 ---
-            Text("Version 2.0.0 (Stable)", fontSize = 14.sp, color = Color.Gray)
+            // --- UPDATED: Version 2.0.1---
+            Text("Version 2.0.1 (Stable)", fontSize = 14.sp, color = Color.Gray)
 
             Spacer(modifier = Modifier.height(8.dp))
             Text(

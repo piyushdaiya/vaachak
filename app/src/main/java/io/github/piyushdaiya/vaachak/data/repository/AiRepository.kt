@@ -23,6 +23,7 @@
 package io.github.piyushdaiya.vaachak.data.repository
 
 import android.util.Base64
+import android.util.Log
 import com.google.ai.client.generativeai.GenerativeModel
 import io.github.piyushdaiya.vaachak.data.api.CloudflareAiApi
 import io.github.piyushdaiya.vaachak.data.model.AiImageRequest
@@ -117,7 +118,7 @@ class AiRepository @Inject constructor(
                 request = AiImageRequest(prompt),
                 token = "Bearer $token"
             )
-
+            Log.e("Visualize-Debug", prompt)
             if (response.isSuccessful) {
                 val bytes = response.body()?.bytes()
                 if (bytes != null) {
