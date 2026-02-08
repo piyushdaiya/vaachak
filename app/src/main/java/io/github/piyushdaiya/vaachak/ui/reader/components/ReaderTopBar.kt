@@ -27,6 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -42,11 +43,14 @@ import androidx.compose.ui.unit.sp
 fun ReaderTopBar(
     bookTitle: String,
     isEink: Boolean,
-    showRecap: Boolean, // NEW: Control visibility
+    showRecap: Boolean,
+    isBookmarked: Boolean, // NEW: State of current page
     onBack: () -> Unit,
     onTocClick: () -> Unit,
     onSearchClick: () -> Unit,
     onHighlightsClick: () -> Unit,
+    onBookmarksListClick: () -> Unit, // NEW: Open List
+    onBookmarkToggleClick: () -> Unit, // NEW: Toggle current page
     onRecapClick: () -> Unit,
     onSettingsClick: () -> Unit
 ) {
@@ -95,11 +99,24 @@ fun ReaderTopBar(
                     horizontalArrangement = Arrangement.spacedBy(0.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // Current Page Bookmark Toggle
+                    IconButton(onClick = onBookmarkToggleClick, modifier = Modifier.size(40.dp)) {
+                        Icon(
+                            imageVector = if (isBookmarked) Icons.Default.Bookmark else Icons.Outlined.BookmarkBorder,
+                            contentDescription = "Toggle Bookmark",
+                            modifier = Modifier.size(20.dp),
+                            tint = if(isBookmarked && !isEink) MaterialTheme.colorScheme.primary else LocalContentColor.current
+                        )
+                    }
+
                     ReaderActionIcon(Icons.AutoMirrored.Filled.List, "TOC", onTocClick)
+
+                    // Bookmarks List Icon
+                    ReaderActionIcon(Icons.Default.Bookmarks, "Bookmarks List", onBookmarksListClick)
+
                     ReaderActionIcon(Icons.Default.Search, "Search", onSearchClick)
                     ReaderActionIcon(Icons.Default.Edit, "Highlights", onHighlightsClick)
 
-                    // FIXED: Only show if showRecap is true (Not Offline)
                     if (showRecap) {
                         ReaderActionIcon(Icons.Default.History, "Recap", onRecapClick)
                     }

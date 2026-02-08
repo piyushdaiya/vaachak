@@ -23,7 +23,6 @@
 package io.github.piyushdaiya.vaachak.ui.reader
 
 import android.app.Activity
-//import android.util.Log
 import android.view.ActionMode
 import android.view.Menu
 import android.view.MenuItem
@@ -31,9 +30,13 @@ import android.view.View
 import android.widget.FrameLayout
 import androidx.activity.compose.BackHandler
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -54,6 +57,7 @@ import androidx.fragment.app.FragmentManager
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
+import io.github.piyushdaiya.vaachak.data.local.HighlightEntity
 import io.github.piyushdaiya.vaachak.ui.reader.components.AiBottomSheet
 import io.github.piyushdaiya.vaachak.ui.reader.components.BookHighlightsOverlay
 import io.github.piyushdaiya.vaachak.ui.reader.components.BookSearchOverlay
@@ -65,12 +69,11 @@ import kotlinx.coroutines.launch
 import org.readium.r2.navigator.DecorableNavigator
 import org.readium.r2.navigator.epub.EpubNavigatorFactory
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
+import org.readium.r2.navigator.input.InputListener
+import org.readium.r2.navigator.input.TapEvent
 import org.readium.r2.shared.ExperimentalReadiumApi
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.util.AbsoluteUrl
-// Required for coordinates
-import org.readium.r2.navigator.input.InputListener // Required for touch handling
-import org.readium.r2.navigator.input.TapEvent // Required for tap data
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalReadiumApi::class)
 @Composable
@@ -91,7 +94,6 @@ fun ReaderScreen(
     val currentLocator by viewModel.currentLocator.collectAsState()
 
     val showReaderSettings by viewModel.showReaderSettings.collectAsState()
-    // Type is now known due to import
     val epubPreferences by viewModel.epubPreferences.collectAsState()
 
     val showSearch by viewModel.showSearch.collectAsState()
@@ -101,6 +103,11 @@ fun ReaderScreen(
 
     val showHighlights by viewModel.showHighlights.collectAsState()
     val highlightsList by viewModel.bookmarksList.collectAsState()
+
+    // NEW: Bookmarks State
+    val showBookmarks by viewModel.showBookmarks.collectAsState()
+    val savedBookmarks by viewModel.savedBookmarks.collectAsState()
+    val isPageBookmarked by viewModel.isCurrentPageBookmarked.collectAsState()
 
     val showRecapConfirmation by viewModel.showRecapConfirmation.collectAsState()
     val recapText by viewModel.recapText.collectAsState()
@@ -182,6 +189,7 @@ fun ReaderScreen(
         else if (showToc) viewModel.toggleToc()
         else if (showSearch) viewModel.toggleSearch()
         else if (showHighlights) viewModel.toggleHighlights()
+        else if (showBookmarks) viewModel.toggleBookmarksList() // NEW: Back to close bookmarks
         else if (showRecapConfirmation) viewModel.dismissRecapConfirmation()
         else if (recapText != null) viewModel.dismissRecapResult()
         else if (isBottomSheetVisible) viewModel.dismissBottomSheet()
@@ -309,16 +317,20 @@ fun ReaderScreen(
                 bookTitle = publication?.metadata?.title ?: "Loading...",
                 isEink = isEink,
                 showRecap = isAiEnabled,
+                isBookmarked = isPageBookmarked, // NEW Param
                 onBack = { viewModel.closeBook(); onBack() },
                 onTocClick = { viewModel.toggleToc() },
                 onSearchClick = { viewModel.toggleSearch() },
                 onHighlightsClick = { viewModel.toggleHighlights() },
+                onBookmarksListClick = { viewModel.toggleBookmarksList() }, // NEW Param
+                onBookmarkToggleClick = { viewModel.toggleBookmarkOnCurrentPage() }, // NEW Param
                 onRecapClick = { viewModel.onRecapClicked() },
                 onSettingsClick = { viewModel.toggleReaderSettings() }
             )
         },
         bottomBar = {
-            if (publication != null && !showReaderSettings && !showToc && !showSearch && !showHighlights) {
+            // Hide footer if bookmarks list is showing
+            if (publication != null && !showReaderSettings && !showToc && !showSearch && !showHighlights && !showBookmarks) {
                 ReaderSystemFooter(chapterTitle = pageInfo, isEink = isEink)
             }
         },
@@ -394,6 +406,18 @@ fun ReaderScreen(
                 }
             }
 
+            // NEW: Bookmarks Overlay
+            if (showBookmarks) {
+                Surface(modifier = Modifier.fillMaxSize().zIndex(15f)) {
+                    BookBookmarksOverlay(
+                        bookmarks = savedBookmarks,
+                        onBookmarkClick = { viewModel.onBookmarkClicked(it) },
+                        onDismiss = { viewModel.toggleBookmarksList() },
+                        isEink = isEink
+                    )
+                }
+            }
+
             if (showToc && publication != null) {
                 Surface(modifier = Modifier.fillMaxSize().zIndex(15f)) {
                     TableOfContents(toc = publication!!.tableOfContents, currentHref = currentLocator?.href?.toString(), onLinkSelected = { link -> viewModel.onTocItemSelected(link) }, onDismiss = { viewModel.toggleToc() }, isEink = isEink)
@@ -427,7 +451,63 @@ fun ReaderScreen(
     }
 }
 
-// Helper Function
+// NEW: Helper Composable for Bookmarks List
+@Composable
+fun BookBookmarksOverlay(
+    bookmarks: List<HighlightEntity>,
+    onBookmarkClick: (HighlightEntity) -> Unit,
+    onDismiss: () -> Unit,
+    isEink: Boolean
+) {
+    val containerColor = if (isEink) Color.White else MaterialTheme.colorScheme.surface
+    val contentColor = if (isEink) Color.Black else MaterialTheme.colorScheme.onSurface
+
+    Surface(color = containerColor, modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Bookmarks", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = contentColor)
+                IconButton(onClick = onDismiss) {
+                    Icon(imageVector = Icons.Default.Close, contentDescription = "Close", tint = contentColor)
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (bookmarks.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("No bookmarks added yet.", color = Color.Gray)
+                }
+            } else {
+                LazyColumn {
+                    items(bookmarks.size) { i ->
+                        val bookmark = bookmarks[i]
+                        Card(
+                            onClick = { onBookmarkClick(bookmark) },
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            colors = CardDefaults.cardColors(containerColor = if (isEink) Color.White else MaterialTheme.colorScheme.surfaceVariant)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text(
+                                    text = bookmark.text ?: "Bookmark",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = contentColor
+                                )
+                            }
+                        }
+                        if (i < bookmarks.size - 1) {
+                            HorizontalDivider(thickness = 0.5.dp, color = Color.Gray.copy(alpha = 0.5f))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun TagSelectorDialog(
     onTagSelected: (String) -> Unit,

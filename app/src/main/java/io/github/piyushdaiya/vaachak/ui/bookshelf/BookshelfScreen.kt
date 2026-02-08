@@ -53,6 +53,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import io.github.piyushdaiya.vaachak.data.local.BookEntity
@@ -62,6 +63,7 @@ import io.github.piyushdaiya.vaachak.ui.reader.components.VaachakHeader
 @Composable
 fun BookshelfScreen(
     onBookClick: (String) -> Unit,
+    onBookmarkClick: (String, String) -> Unit,
     onRecallClick: () -> Unit,
     onSettingsClick: () -> Unit,
     viewModel: BookshelfViewModel = hiltViewModel()
@@ -71,8 +73,6 @@ fun BookshelfScreen(
     val libraryBooks by viewModel.filteredLibraryBooks.collectAsState()
     val continueReadingBooks by viewModel.recentBooks.collectAsState()
     val isEink by viewModel.isEinkEnabled.collectAsState()
-
-    // NEW: Observe Offline Mode
     val isOfflineMode by viewModel.isOfflineModeEnabled.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -81,6 +81,9 @@ fun BookshelfScreen(
     var showSortMenu by remember { mutableStateOf(false) }
     val recapState by viewModel.recapState.collectAsState()
     val loadingUri by viewModel.isLoadingRecap.collectAsState()
+
+    val bookmarksSheetUri by viewModel.bookmarksSheetBookUri.collectAsState()
+    val selectedBookBookmarks by viewModel.selectedBookBookmarks.collectAsState()
 
     LaunchedEffect(snackbarMessage) {
         snackbarMessage?.let { message -> snackbarHostState.showSnackbar(message); viewModel.clearSnackbarMessage() }
@@ -97,7 +100,6 @@ fun BookshelfScreen(
                 showBackButton = false,
                 isEink = isEink,
                 actions = {
-                    // CONDITION: Hide Recall if Offline
                     if (!isOfflineMode) {
                         IconButton(onClick = onRecallClick) { Icon(Icons.Default.AutoAwesome, "Recall", Modifier.size(22.dp)) }
                     }
@@ -120,6 +122,8 @@ fun BookshelfScreen(
             EmptyShelfPlaceholder(padding, isEink)
         } else {
             LazyColumn(modifier = Modifier.padding(padding).fillMaxSize(), contentPadding = PaddingValues(bottom = 88.dp)) {
+
+                // --- CONTINUE READING SECTION ---
                 if (continueReadingBooks.isNotEmpty() && searchQuery.isEmpty()) {
                     item {
                         BookshelfSectionLabel("Continue Reading", isEink)
@@ -127,11 +131,13 @@ fun BookshelfScreen(
                             items(continueReadingBooks, key = { it.id }) { book ->
                                 BookCard(
                                     book = book, isCompact = true, isEink = isEink,
-                                    showRecap = !isOfflineMode, // CONDITION
+                                    showRecap = !isOfflineMode,
+                                    showBookmarks = true,
                                     isLoadingRecap = loadingUri == book.uriString,
                                     onClick = { onBookClick(book.uriString) },
                                     onDelete = { viewModel.deleteBookByUri(book.uriString) },
-                                    onRecapClick = { viewModel.getQuickRecap(book) }
+                                    onRecapClick = { viewModel.getQuickRecap(book) },
+                                    onBookmarksClick = { viewModel.openBookmarksSheet(book.uriString) }
                                 )
                             }
                         }
@@ -140,6 +146,7 @@ fun BookshelfScreen(
                     }
                 }
 
+                // --- LIBRARY CONTROLS ---
                 item {
                     LibraryControls(
                         searchQuery = searchQuery, sortOrder = sortOrder, showSortMenu = showSortMenu, isEink = isEink,
@@ -150,6 +157,7 @@ fun BookshelfScreen(
                     )
                 }
 
+                // --- MAIN LIBRARY GRID ---
                 if (libraryBooks.isEmpty() && searchQuery.isNotEmpty()) {
                     item { SearchEmptyState(searchQuery, isEink) { viewModel.updateSearchQuery("") } }
                 } else {
@@ -159,11 +167,13 @@ fun BookshelfScreen(
                                 Box(modifier = Modifier.weight(1f)) {
                                     BookCard(
                                         book = book, isCompact = true, isEink = isEink,
-                                        showRecap = false, // Never show summary on main library list (design choice)
+                                        showRecap = false,
+                                        showBookmarks = false,
                                         isLoadingRecap = loadingUri == book.uriString,
                                         onClick = { onBookClick(book.uriString) },
                                         onDelete = { viewModel.deleteBookByUri(book.uriString) },
-                                        onRecapClick = { viewModel.getQuickRecap(book) }
+                                        onRecapClick = { viewModel.getQuickRecap(book) },
+                                        onBookmarksClick = {}
                                     )
                                 }
                             }
@@ -174,7 +184,7 @@ fun BookshelfScreen(
             }
         }
 
-        // Recap Dialog
+        // --- RECAP DIALOG ---
         continueReadingBooks.forEach { book ->
             recapState[book.uriString]?.let { recap ->
                 AlertDialog(
@@ -186,10 +196,61 @@ fun BookshelfScreen(
                 )
             }
         }
+
+        // --- BOOKMARKS SHEET ---
+        if (bookmarksSheetUri != null) {
+            ModalBottomSheet(
+                onDismissRequest = { viewModel.dismissBookmarksSheet() },
+                containerColor = if (isEink) Color.White else MaterialTheme.colorScheme.surface,
+                contentColor = if (isEink) Color.Black else MaterialTheme.colorScheme.onSurface
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                        .padding(bottom = 32.dp)
+                ) {
+                    Text(
+                        text = "Bookmarks",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+
+                    if (selectedBookBookmarks.isEmpty()) {
+                        Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
+                            Text("No bookmarks found for this book.", color = Color.Gray)
+                        }
+                    } else {
+                        LazyColumn {
+                            items(selectedBookBookmarks) { bookmark ->
+                                Card(
+                                    onClick = {
+                                        viewModel.dismissBookmarksSheet()
+                                        onBookmarkClick(bookmark.publicationId, bookmark.locatorJson)
+                                    },
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (isEink) Color.White else MaterialTheme.colorScheme.surfaceVariant
+                                    ),
+                                    border = if (isEink) BorderStroke(1.dp, Color.Black) else null
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp)) {
+                                        Text(
+                                            text = bookmark.text ?: "Bookmark",
+                                            fontWeight = FontWeight.Bold,
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
-
-
 
 // --- COMPONENTS ---
 
@@ -239,7 +300,6 @@ fun LibraryControls(
                     onDismissRequest = onSortDismiss,
                     modifier = Modifier.background(if(isEink) Color.White else MaterialTheme.colorScheme.surface)
                 ) {
-                    // FIX: Using SortOption helper
                     SortOption(SortOrder.TITLE, "Title", sortOrder, onSortSelect)
                     SortOption(SortOrder.AUTHOR, "Author", sortOrder, onSortSelect)
                     SortOption(SortOrder.DATE_ADDED, "Recent", sortOrder, onSortSelect)
@@ -278,7 +338,6 @@ fun LibraryControls(
     }
 }
 
-// FIX: Helper to show checkmarks
 @Composable
 private fun SortOption(
     targetOrder: SortOrder,
@@ -302,7 +361,6 @@ fun EmptyShelfPlaceholder(padding: PaddingValues, isEink: Boolean) {
     Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(
-                // FIX: Used AutoMirrored correctly
                 Icons.AutoMirrored.Filled.MenuBook,
                 null, modifier = Modifier.size(48.dp),
                 tint = if(isEink) Color.LightGray else MaterialTheme.colorScheme.outline
@@ -334,10 +392,12 @@ fun BookCard(
     isCompact: Boolean = false,
     isLoadingRecap: Boolean = false,
     showRecap: Boolean = false,
+    showBookmarks: Boolean = false,
     isEink: Boolean,
     onClick: () -> Unit,
     onDelete: () -> Unit,
-    onRecapClick: () -> Unit
+    onRecapClick: () -> Unit,
+    onBookmarksClick: () -> Unit
 ) {
     val cardBg = if (isEink) Color.White else MaterialTheme.colorScheme.surface
     val border = if (isEink) BorderStroke(1.dp, Color.Black) else null
@@ -391,7 +451,7 @@ fun BookCard(
                     )
 
                     if (book.progress > 0) {
-                        var pct = kotlin.math.round(book.progress* 100).toInt()
+                        var pct = kotlin.math.round(book.progress * 100).toInt()
                         if (book.progress > .99) pct = 100
 
                         Spacer(modifier = Modifier.height(4.dp))
@@ -412,8 +472,31 @@ fun BookCard(
                 }
             }
 
+            // Top Left: Bookmark Icon
+            if (showBookmarks) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(4.dp)
+                        .zIndex(2f)
+                ) {
+                    SmallIconButton(
+                        // FIX: Use Icons.Default.Bookmark for consistency with Reader
+                        icon = Icons.Default.Bookmark,
+                        onClick = onBookmarksClick,
+                        isEink = isEink,
+                        isDestructive = false,
+                        isPrimary = true
+                    )
+                }
+            }
+
+            // Top Right: Recap & Delete
             Row(
-                modifier = Modifier.align(Alignment.TopEnd).padding(4.dp),
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp)
+                    .zIndex(2f),
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 if (showRecap) {
@@ -422,14 +505,15 @@ fun BookCard(
                         onClick = onRecapClick,
                         isLoading = isLoadingRecap,
                         isEink = isEink,
-                        isDestructive = false // Safe
+                        isDestructive = false
                     )
                 }
+
                 SmallIconButton(
                     icon = Icons.Default.Delete,
                     onClick = onDelete,
                     isEink = isEink,
-                    isDestructive = true // Destructive
+                    isDestructive = true
                 )
             }
         }
@@ -442,13 +526,14 @@ fun SmallIconButton(
     onClick: () -> Unit,
     isLoading: Boolean = false,
     isEink: Boolean,
-    isDestructive: Boolean
+    isDestructive: Boolean,
+    isPrimary: Boolean = false
 ) {
-    // FIX: Optimized logic to remove duplication and use isDestructive properly
     val bgColor = when {
         isEink && isDestructive -> Color.Black
         isEink -> Color.White
         isDestructive -> MaterialTheme.colorScheme.errorContainer
+        isPrimary -> MaterialTheme.colorScheme.primaryContainer
         else -> Color.Black.copy(alpha=0.6f)
     }
 
@@ -456,6 +541,7 @@ fun SmallIconButton(
         isEink && isDestructive -> Color.White
         isEink -> Color.Black
         isDestructive -> MaterialTheme.colorScheme.onErrorContainer
+        isPrimary -> MaterialTheme.colorScheme.onPrimaryContainer
         else -> Color.White
     }
 

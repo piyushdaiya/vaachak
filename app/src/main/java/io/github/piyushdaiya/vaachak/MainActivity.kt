@@ -157,7 +157,12 @@ class MainActivity : AppCompatActivity() {
                                         0 -> BookshelfScreen(
                                             onBookClick = { uri -> openBook(uri) },
                                             onRecallClick = { showSessionHistory = true },
-                                            onSettingsClick = { showSettingsOnHome = true }
+                                            onSettingsClick = { showSettingsOnHome = true },
+                                            // NEW: Handle Bookmark Clicks from the Bookshelf Sheet
+                                            onBookmarkClick = { uri, locator ->
+                                                targetHighlightLocator = locator
+                                                openBook(uri)
+                                            }
                                         )
                                         1 -> AllHighlightsScreen(
                                             onBack = { selectedTab = 0 },

@@ -49,12 +49,9 @@ import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.Publication
 import org.readium.r2.shared.publication.services.search.SearchService
 import javax.inject.Inject
+import kotlin.math.abs
+import kotlin.math.round
 
-/**
- * ViewModel for the Reader screen.
- * Manages the state of the e-book reader, including loading publications,
- * handling navigation, managing settings, and interacting with AI features.
- */
 @OptIn(ExperimentalCoroutinesApi::class, ExperimentalReadiumApi::class, FlowPreview::class)
 @HiltViewModel
 class ReaderViewModel @Inject constructor(
@@ -78,17 +75,16 @@ class ReaderViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.Lazily, true)
 
     // --- 2. READER PREFERENCES ---
-    //
     val epubPreferences: StateFlow<EpubPreferences> = combine(
-        settingsRepo.readerTheme as Flow<Any?>,         // 0
-        settingsRepo.readerFontFamily as Flow<Any?>,    // 1
-        settingsRepo.readerFontSize as Flow<Any?>,      // 2
-        settingsRepo.readerTextAlign as Flow<Any?>,     // 3
-        settingsRepo.readerLineHeight as Flow<Any?>,    // 4
-        settingsRepo.readerPublisherStyles as Flow<Any?>,// 5
-        settingsRepo.readerLetterSpacing as Flow<Any?>, // 6
-        settingsRepo.readerParaSpacing as Flow<Any?>,   // 7
-        settingsRepo.readerMarginSide as Flow<Any?>     // 8
+        settingsRepo.readerTheme as Flow<Any?>,
+        settingsRepo.readerFontFamily as Flow<Any?>,
+        settingsRepo.readerFontSize as Flow<Any?>,
+        settingsRepo.readerTextAlign as Flow<Any?>,
+        settingsRepo.readerLineHeight as Flow<Any?>,
+        settingsRepo.readerPublisherStyles as Flow<Any?>,
+        settingsRepo.readerLetterSpacing as Flow<Any?>,
+        settingsRepo.readerParaSpacing as Flow<Any?>,
+        settingsRepo.readerMarginSide as Flow<Any?>
     ) { params ->
         buildEpubPreferences(params)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, EpubPreferences())
@@ -120,10 +116,15 @@ class ReaderViewModel @Inject constructor(
     val isBookSearching: StateFlow<Boolean> = _isBookSearching.asStateFlow()
     private val _searchResults = MutableStateFlow<List<Locator>>(emptyList())
     val searchResults: StateFlow<List<Locator>> = _searchResults.asStateFlow()
-    private val _showHighlights = MutableStateFlow(true)
-    val showHighlights: StateFlow<Boolean> = _showHighlights.asStateFlow()
     private val _jumpEvent = MutableSharedFlow<Locator>()
     val jumpEvent = _jumpEvent.asSharedFlow()
+
+    private val _showHighlights = MutableStateFlow(false)
+    val showHighlights: StateFlow<Boolean> = _showHighlights.asStateFlow()
+
+    // NEW: Bookmarks Overlay State
+    private val _showBookmarks = MutableStateFlow(false)
+    val showBookmarks: StateFlow<Boolean> = _showBookmarks.asStateFlow()
 
     private val _isBottomSheetVisible = MutableStateFlow(false)
     val isBottomSheetVisible = _isBottomSheetVisible.asStateFlow()
@@ -153,15 +154,42 @@ class ReaderViewModel @Inject constructor(
     private var pendingJumpLocator: String? = null
     private var pendingHighlightLocator: Locator? = null
 
-    val bookmarksList: StateFlow<List<HighlightEntity>> = _currentBookId.filterNotNull()
+    // --- DATA STREAMS ---
+
+    // 1. Raw Stream of all items (Highlights + Bookmarks)
+    private val allBookItems = _currentBookId.filterNotNull()
         .flatMapLatest { id -> highlightDao.getHighlightsForBook(id) }
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    // Highlights Flow
+    // 2. Filtered: User Highlights only (Exclude bookmarks and recaps)
+    val bookmarksList: StateFlow<List<HighlightEntity>> = allBookItems.map { list ->
+        list.filter { it.tag != "BOOKMARK" && it.tag != "recap" }
+    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    // 3. Filtered: Bookmarks only
+    val savedBookmarks: StateFlow<List<HighlightEntity>> = allBookItems.map { list ->
+        list.filter { it.tag == "BOOKMARK" }
+    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    // 4. Check if Current Page is Bookmarked
+    val isCurrentPageBookmarked: StateFlow<Boolean> = combine(currentLocator, savedBookmarks) { locator, bookmarks ->
+        if (locator == null) return@combine false
+        bookmarks.any { entity ->
+            try {
+                val bLoc = Locator.fromJSON(JSONObject(entity.locatorJson))
+                // Match Resource (href) AND Progression (within 1% tolerance)
+                bLoc?.href == locator.href &&
+                        abs((bLoc?.locations?.totalProgression ?: 0.0) - (locator.locations.totalProgression ?: 0.0)) < 0.01
+            } catch (e: Exception) { false }
+        }
+    }.stateIn(viewModelScope, SharingStarted.Lazily, false)
+
+    // 5. Decorations (Visual Highlights on the page)
+    // We EXCLUDE "BOOKMARK" tags here so they don't paint yellow lines on the page text
     val currentBookHighlights: StateFlow<List<Decoration>> = combine(
-        bookmarksList, isEinkEnabled
-    ) { highlights, isEink ->
-        highlights.mapNotNull { entity ->
+        allBookItems, isEinkEnabled
+    ) { items, isEink ->
+        items.filter { it.tag != "BOOKMARK" }.mapNotNull { entity ->
             try {
                 val locator = Locator.fromJSON(JSONObject(entity.locatorJson))
                 if (locator != null) {
@@ -186,6 +214,7 @@ class ReaderViewModel @Inject constructor(
         _showSearch.value = false
         _isBookSearching.value = false
         _showHighlights.value = false
+        _showBookmarks.value = false // Reset
         _recapText.value = null
         _showRecapConfirmation.value = false
         _showReaderSettings.value = false
@@ -208,14 +237,67 @@ class ReaderViewModel @Inject constructor(
         }
     }
 
+    // --- BOOKMARK ACTIONS ---
+
+    fun toggleBookmarksList() {
+        _showBookmarks.value = !_showBookmarks.value
+        // Close others
+        if(_showBookmarks.value) { _showHighlights.value = false; _showToc.value = false }
+    }
+
+    fun toggleBookmarkOnCurrentPage() {
+        val locator = _currentLocator.value ?: return
+        val bookId = _currentBookId.value ?: return
+        val isBookmarked = isCurrentPageBookmarked.value
+
+        viewModelScope.launch {
+            if (isBookmarked) {
+                // Remove (Find closest match)
+                val bookmarks = savedBookmarks.value
+                val toDelete = bookmarks.find { entity ->
+                    try {
+                        val bLoc = Locator.fromJSON(JSONObject(entity.locatorJson))
+                        bLoc?.href == locator.href &&
+                                abs((bLoc?.locations?.totalProgression ?: 0.0) - (locator.locations.totalProgression ?: 0.0)) < 0.01
+                    } catch (e: Exception) { false }
+                }
+                if (toDelete != null) {
+                    highlightDao.deleteHighlightById(toDelete.id)
+                    _snackbarMessage.value = "Bookmark removed"
+                }
+            } else {
+                // Add
+                val bookmark = HighlightEntity(
+                    publicationId = bookId,
+                    locatorJson = locator.toJSON().toString(),
+                    text = "Bookmark at ${currentPageInfo.value}",
+                    color = Color.TRANSPARENT, // No visual highlighting needed
+                    tag = "BOOKMARK"
+                )
+                highlightDao.insertHighlight(bookmark)
+                _snackbarMessage.value = "Bookmark added"
+            }
+        }
+    }
+
+    fun onBookmarkClicked(entity: HighlightEntity) {
+        viewModelScope.launch {
+            try {
+                val l = Locator.fromJSON(JSONObject(entity.locatorJson))
+                if (l != null) {
+                    _showBookmarks.value = false
+                    _jumpEvent.emit(l)
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
     // --- SETTINGS ACTIONS ---
 
     fun toggleReaderSettings() { _showReaderSettings.value = !_showReaderSettings.value }
     fun dismissReaderSettings() { _showReaderSettings.value = false }
     fun toggleBookAi(enabled: Boolean) { _bookAiEnabled.value = enabled }
 
-
-    // --- NEW: Save All Preferences (For "Save" button) ---
 
     fun savePreferences(newPrefs: EpubPreferences) = viewModelScope.launch {
         settingsRepo.updateReaderPreferences(
@@ -231,17 +313,11 @@ class ReaderViewModel @Inject constructor(
         )
     }
 
-    // FIX: Using Array<Any?> to prevent intersection type errors
-    // FIX: Using safe cast (as?) and defaults (?:) to prevent NullPointerException
     private fun buildEpubPreferences(params: Array<Any?>): EpubPreferences {
-        // Safe unpacking with defaults
         val themeStr = (params[0] as? String) ?: "light"
-        val fontStr = params[1] as? String // Nullable is okay
+        val fontStr = params[1] as? String
         val fontSizeVal = (params[2] as? Double) ?: 1.0
         val alignStr = (params[3] as? String) ?: "start"
-
-        // Correct Index Mapping based on combine() order above:
-        // 4 is LineHeight (Double), NOT PubStyles (Boolean)
         val lineht = (params[4] as? Double) ?: 1.2
         val pubStyles = (params[5] as? Boolean) ?: true
         val letterSp = (params[6] as? Double)
@@ -354,16 +430,19 @@ class ReaderViewModel @Inject constructor(
 
     fun updateProgress(l: Locator) {
         _currentLocator.value = l
-        val pos = l.locations.position?:0; val prog = l.locations.totalProgression?:0.0; var pct = (prog*100).toInt()
-        if (prog > 0.99) {
-            pct = 100
-        }
+        val pos = l.locations.position?:0; val prog = l.locations.totalProgression?:0.0
+
+        // Fix 99% Issue
+        var pct = round(prog * 100).toInt()
+        if(prog > 0.99) pct = 100
+
         _currentPageInfo.value = if(pos>0) "Page $pos ($pct%)" else "$pct% completed"
+
         val u = _currentBookId.value?:return
         viewModelScope.launch { bookDao.updateLastLocation(u, l.toJSON().toString()); bookDao.updateProgress(u, prog) }
     }
 
-    fun closeBook() { viewModelScope.launch { readiumManager.closePublication(); _publication.value=null; _currentLocator.value=null; _bookSearchQuery.value=""; _searchResults.value=emptyList(); _showHighlights.value=false } }
+    fun closeBook() { viewModelScope.launch { readiumManager.closePublication(); _publication.value=null; _currentLocator.value=null; _bookSearchQuery.value=""; _searchResults.value=emptyList(); _showHighlights.value=false; _showBookmarks.value=false } }
 
     fun prepareHighlight(l: Locator) { pendingHighlightLocator = l; _showTagSelector.value = true }
 

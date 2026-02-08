@@ -32,9 +32,11 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import io.github.piyushdaiya.vaachak.data.local.BookDao
 import io.github.piyushdaiya.vaachak.data.local.BookEntity
 import io.github.piyushdaiya.vaachak.data.local.HighlightDao
+import io.github.piyushdaiya.vaachak.data.local.HighlightEntity
 import io.github.piyushdaiya.vaachak.data.repository.AiRepository
 import io.github.piyushdaiya.vaachak.data.repository.SettingsRepository
 import io.github.piyushdaiya.vaachak.ui.reader.ReadiumManager
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.io.File
@@ -61,53 +63,29 @@ class BookshelfViewModel @Inject constructor(
 ) : ViewModel() {
 
     // --- STATE: THEME ---
-    /**
-     * Indicates if E-ink optimization is enabled.
-     */
     val isEinkEnabled: StateFlow<Boolean> = settingsRepo.isEinkEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     // NEW: Offline Mode State
-    /**
-     * Indicates if offline mode is enabled.
-     */
     val isOfflineModeEnabled: StateFlow<Boolean> = settingsRepo.isOfflineModeEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     // --- STATE: SNACKBAR ---
     private val _snackbarMessage = MutableStateFlow<String?>(null)
-    /**
-     * A message to be displayed in a Snackbar.
-     */
     val snackbarMessage = _snackbarMessage.asStateFlow()
 
-    /**
-     * Clears the current Snackbar message.
-     */
     fun clearSnackbarMessage() { _snackbarMessage.value = null }
 
     // --- STATE: BOOKS ---
-    /**
-     * A list of all books in the library, sorted by recent activity.
-     */
     val allBooks: StateFlow<List<BookEntity>> = bookDao.getAllBooksSortedByRecent()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _searchQuery = MutableStateFlow("")
-    /**
-     * The current search query for filtering books.
-     */
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
     private val _sortOrder = MutableStateFlow(SortOrder.DATE_ADDED)
-    /**
-     * The current sort order for the library.
-     */
     val sortOrder = _sortOrder.asStateFlow()
 
-    /**
-     * A filtered and sorted list of books that have not been started (progress <= 0).
-     */
     val filteredLibraryBooks: StateFlow<List<BookEntity>> =
         combine(allBooks, searchQuery, _sortOrder) { books, query, order ->
             val filtered = books.filter { book -> (book.progress <= 0.0 || book.progress >= 0.99) && book.title.contains(query, ignoreCase = true) }
@@ -118,48 +96,47 @@ class BookshelfViewModel @Inject constructor(
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    /**
-     * A list of recently read books (progress > 0), sorted by last read time.
-     */
     val recentBooks: StateFlow<List<BookEntity>> = allBooks.map { books ->
         books.filter { it.progress > 0.0 && it.progress < 0.99 }.sortedByDescending { it.lastRead }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // --- RECAP STATE ---
     private val _recapState = MutableStateFlow<Map<String, String>>(emptyMap())
-    /**
-     * A map of book URIs to their generated recap summaries.
-     */
     val recapState: StateFlow<Map<String, String>> = _recapState.asStateFlow()
 
     private val _isLoadingRecap = MutableStateFlow<String?>(null)
-    /**
-     * The URI of the book for which a recap is currently being generated, or null if none.
-     */
     val isLoadingRecap: StateFlow<String?> = _isLoadingRecap.asStateFlow()
+
+    // --- NEW: BOOKMARKS SHEET STATE ---
+    private val _bookmarksSheetBookUri = MutableStateFlow<String?>(null)
+    /**
+     * The URI of the book currently selected for viewing bookmarks.
+     * If null, the bookmarks sheet is hidden.
+     */
+    val bookmarksSheetBookUri = _bookmarksSheetBookUri.asStateFlow()
+
+    /**
+     * A filtered list of bookmarks (tag="BOOKMARK") for the currently selected book.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val selectedBookBookmarks: StateFlow<List<HighlightEntity>> = _bookmarksSheetBookUri
+        .flatMapLatest { uri ->
+            if (uri == null) {
+                flowOf(emptyList())
+            } else {
+                highlightDao.getHighlightsForBook(uri).map { list ->
+                    list.filter { it.tag == "BOOKMARK" }
+                }
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
 
     // --- ACTIONS ---
 
-    /**
-     * Updates the search query.
-     *
-     * @param query The new search query.
-     */
     fun updateSearchQuery(query: String) { _searchQuery.value = query }
-
-    /**
-     * Updates the sort order.
-     *
-     * @param order The new sort order.
-     */
     fun updateSortOrder(order: SortOrder) { _sortOrder.value = order }
 
-    /**
-     * Imports a book from a URI into the library.
-     * Extracts metadata and cover image.
-     *
-     * @param uri The URI of the book file.
-     */
     fun importBook(uri: Uri) {
         viewModelScope.launch {
             if (allBooks.value.any { it.uriString == uri.toString() }) {
@@ -193,21 +170,9 @@ class BookshelfViewModel @Inject constructor(
         return file.absolutePath
     }
 
-    /**
-     * Deletes a book from the library.
-     *
-     * @param id The ID of the book to delete.
-     */
-
     fun deleteBookByUri(uri: String) = viewModelScope.launch { bookDao.deleteBookByUri(uri) }
 
-    /**
-     * Generates a quick recap for a book using AI.
-     *
-     * @param book The book to generate a recap for.
-     */
     fun getQuickRecap(book: BookEntity) {
-        // FAILSAFE: Block if Offline
         if (isOfflineModeEnabled.value) {
             _snackbarMessage.value = "Offline Mode enabled. Connect to use Recall."
             return
@@ -222,10 +187,21 @@ class BookshelfViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Clears the generated recap for a specific book.
-     *
-     * @param uri The URI of the book.
-     */
     fun clearRecap(uri: String) { _recapState.value = _recapState.value - uri }
+
+    // --- NEW: BOOKMARKS ACTIONS ---
+
+    /**
+     * Opens the bookmarks sheet for a specific book.
+     */
+    fun openBookmarksSheet(uri: String) {
+        _bookmarksSheetBookUri.value = uri
+    }
+
+    /**
+     * Closes the bookmarks sheet.
+     */
+    fun dismissBookmarksSheet() {
+        _bookmarksSheetBookUri.value = null
+    }
 }
