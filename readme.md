@@ -21,6 +21,13 @@ Vaachak fills this gap: a tool built by a reader, for readers.
 * **Custom Immersive UI:** A distraction-free interface replacing default system bars with a Smart Header (TOC, Search, Highlights) and a System Footer (Chapter progress, Battery, Time).
 * **In-Book Search:** Full-text search with keyword highlighting and instant navigation.
 * **Recursive Table of Contents:** Smart navigation with auto-detection of the active chapter.
+* **Bookmarks:** Easy Bookmark Management
+  * Bookmarks can be viewed from Bookshelf screen via books in Continue Reading section or from reader screen in top bar. 
+  * User has option to navigate to any bookmarks from bookmark listing.
+* **Bookshelf** Simplified view of Library
+  * Books opened and read will be displayed in **Continued Reading** section
+  * Books added to library but opened remain in **Library** section
+  * Books completed are added back to **Library** section
 
 ### ✒️ E-Ink Optimization
 * **E-Ink Optimized UI:** Global bitonal theme, zero-animation transitions, and high-contrast UI components to prevent ghosting.
@@ -52,7 +59,7 @@ Vaachak fills this gap: a tool built by a reader, for readers.
 ## 🛠️ Tech Stack
 * **Language:** Kotlin / Java (Android)
 * **LLM Partner:** Google Gemini (used for pair programming, boilerplate generation, and API orchestration).
-* **Target Hardware:** Boox Leaf 3C (Android 11+).
+* **Target Hardware:** E-ink devices, Android Phones.
 
 ## 🏗️ Architecture
 
