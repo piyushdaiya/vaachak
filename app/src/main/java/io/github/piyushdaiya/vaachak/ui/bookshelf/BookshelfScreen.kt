@@ -27,6 +27,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -56,10 +57,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import androidx.compose.ui.platform.LocalContext
 import io.github.piyushdaiya.vaachak.data.local.BookEntity
 import io.github.piyushdaiya.vaachak.ui.reader.components.VaachakHeader
+import java.io.File
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun BookshelfScreen(
     onBookClick: (String) -> Unit,
@@ -102,7 +106,6 @@ fun BookshelfScreen(
                 isEink = isEink,
                 actions = {
                     if (!isOfflineMode) {
-                        // NEW: Catalog Button (Globe Icon)
                         IconButton(onClick = onCatalogClick) {
                             Icon(Icons.Default.Public, "Online Catalog", Modifier.size(22.dp))
                         }
@@ -421,14 +424,19 @@ fun BookCard(
                     modifier = Modifier.fillMaxWidth().weight(1f).background(Color.LightGray),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (book.coverPath != null) {
+                    if (book.coverPath != null && File(book.coverPath).exists()) {
+                        // FIX: Force Coil to load from File object
                         AsyncImage(
-                            model = book.coverPath,
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(File(book.coverPath))
+                                .crossfade(true)
+                                .build(),
                             contentDescription = null,
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop
                         )
                     } else {
+                        // Fallback Text Cover
                         Text(
                             text = book.title.take(1).uppercase(),
                             style = MaterialTheme.typography.displayMedium,
@@ -477,7 +485,7 @@ fun BookCard(
                 }
             }
 
-            // Top Left: Bookmark Icon
+            // --- Overlays (Bookmarks, Recycle Bin, etc.) ---
             if (showBookmarks) {
                 Box(
                     modifier = Modifier
@@ -486,7 +494,6 @@ fun BookCard(
                         .zIndex(2f)
                 ) {
                     SmallIconButton(
-                        // FIX: Use Icons.Default.Bookmark for consistency with Reader
                         icon = Icons.Default.Bookmark,
                         onClick = onBookmarksClick,
                         isEink = isEink,
@@ -496,7 +503,6 @@ fun BookCard(
                 }
             }
 
-            // Top Right: Recap & Delete
             Row(
                 modifier = Modifier
                     .align(Alignment.TopEnd)

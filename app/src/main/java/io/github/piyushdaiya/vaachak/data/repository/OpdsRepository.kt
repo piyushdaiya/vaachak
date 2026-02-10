@@ -1,6 +1,5 @@
 package io.github.piyushdaiya.vaachak.data.repository
 
-import android.util.Log
 import io.github.piyushdaiya.vaachak.data.local.OpdsDao
 import io.github.piyushdaiya.vaachak.data.local.OpdsEntity
 import org.readium.r2.shared.util.Try
@@ -17,6 +16,7 @@ import okhttp3.Response
 import okhttp3.Cookie
 import okhttp3.CookieJar
 import okhttp3.HttpUrl
+import okhttp3.Interceptor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -30,15 +30,17 @@ import javax.inject.Singleton
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
+import android.util.Log
 
 @Singleton
 class OpdsRepository @Inject constructor(
     private val opdsDao: OpdsDao
 ) {
-    // Standard Chrome User Agent (Trusted by Gutenberg)
+    // User Agents
     private val UA_CHROME = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    private val UA_CALIBRE = "Stanza/3.2 iPhone/5.1"
 
-    // In-Memory Cookie Store (Critical for Gutenberg/ManyBooks)
+    // In-Memory Cookie Store
     private val cookieStore = HashMap<String, List<Cookie>>()
 
     // --- CLIENTS ---
@@ -61,6 +63,22 @@ class OpdsRepository @Inject constructor(
                 override fun loadForRequest(url: HttpUrl): List<Cookie> {
                     return cookieStore[url.host] ?: emptyList()
                 }
+            })
+            // Browser Headers Interceptor
+            .addNetworkInterceptor(Interceptor { chain ->
+                val original = chain.request()
+                val url = original.url.toString()
+
+                // Calibre Detection (Local IP)
+                val isLocal = url.contains("192.168.") || url.contains("10.") || url.contains(".local")
+                val userAgent = if (isLocal) UA_CALIBRE else UA_CHROME
+
+                val requestBuilder = original.newBuilder()
+                    .header("User-Agent", userAgent)
+                    .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,application/opds+json,*/*;q=0.8")
+                    .header("Accept-Language", "en-US,en;q=0.9")
+
+                chain.proceed(requestBuilder.build())
             })
 
         if (unsafe) {
@@ -107,10 +125,7 @@ class OpdsRepository @Inject constructor(
         val allowInsecure = storedFeed?.allowInsecure ?: false
         val client = if (allowInsecure) unsafeClient else safeClient
 
-        val requestBuilder = Request.Builder()
-            .url(url)
-            .header("User-Agent", UA_CHROME)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,application/opds+json,*/*;q=0.8")
+        val requestBuilder = Request.Builder().url(url)
 
         if (storedFeed?.username != null && storedFeed.password != null) {
             requestBuilder.header("Authorization", Credentials.basic(storedFeed.username, storedFeed.password))
@@ -136,6 +151,7 @@ class OpdsRepository @Inject constructor(
 
             if (!response.isSuccessful) {
                 val msg = "HTTP ${response.code}: ${response.message}"
+                Log.e("OpdsRepository", msg)
                 response.close()
                 return@withContext Try.Failure<ParseData, Exception>(Exception(msg))
             }
@@ -152,6 +168,7 @@ class OpdsRepository @Inject constructor(
                 return@withContext Try.Failure<ParseData, Exception>(Exception("Server returned HTML (Login/Block Page)."))
             }
 
+            // Apply ManyBooks Fix
             val safeBytes = sanitizeXml(bodyBytes)
 
             // 1. Try OPDS 2.0 (JSON)
@@ -168,7 +185,6 @@ class OpdsRepository @Inject constructor(
                     safeBytes.copyOfRange(3, safeBytes.size)
                 } else safeBytes
 
-                // --- EXACT LOGIC FROM YOUR WORKING CODE ---
                 val result = OPDS1Parser.parse(cleanBytes, absoluteUrl)
 
                 return@withContext when (result) {
@@ -180,8 +196,6 @@ class OpdsRepository @Inject constructor(
                         else Try.Failure(Exception("Unknown Parser State"))
                     }
                 }
-                // ------------------------------------------
-
             } catch (e: Exception) {
                 return@withContext Try.Failure<ParseData, Exception>(Exception("XML Error: ${e.message}"))
             }
@@ -200,9 +214,7 @@ class OpdsRepository @Inject constructor(
             val allowInsecure = storedFeed?.allowInsecure ?: false
             val client = if (allowInsecure) unsafeClient else safeClient
 
-            val requestBuilder = Request.Builder()
-                .url(downloadUrl)
-                .header("User-Agent", UA_CHROME)
+            val requestBuilder = Request.Builder().url(downloadUrl)
 
             if (storedFeed?.username != null && storedFeed.password != null) {
                 requestBuilder.header("Authorization", Credentials.basic(storedFeed.username, storedFeed.password))
@@ -228,6 +240,8 @@ class OpdsRepository @Inject constructor(
         }
         return@withContext false
     }
+
+    // --- HELPER: Fix Bad XML (ManyBooks) ---
     private fun sanitizeXml(rawXml: ByteArray): ByteArray {
         try {
             val xmlString = String(rawXml, Charset.forName("UTF-8"))
@@ -237,10 +251,6 @@ class OpdsRepository @Inject constructor(
             var cleanXml = xmlString.replace(Regex("<title[^>]*>\\s*<div[^>]*>(.*?)</div>\\s*</title>", RegexOption.DOT_MATCHES_ALL)) {
                 "<title>${it.groupValues[1].trim()}</title>"
             }
-
-            // 2. Remove any other empty <title /> which might confuse parser
-            // (Optional, but good for safety)
-            // cleanXml = cleanXml.replace("<title />", "")
 
             return cleanXml.toByteArray(Charset.forName("UTF-8"))
         } catch (e: Exception) {

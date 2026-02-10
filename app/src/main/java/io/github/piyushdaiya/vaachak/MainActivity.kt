@@ -47,12 +47,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.node.DelegatableNode
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
 import io.github.piyushdaiya.vaachak.ui.bookshelf.BookshelfScreen
 import io.github.piyushdaiya.vaachak.ui.bookshelf.BookshelfViewModel
+import io.github.piyushdaiya.vaachak.ui.catalog.CatalogBrowserScreen
+import io.github.piyushdaiya.vaachak.ui.catalog.CatalogManagerScreen
 import io.github.piyushdaiya.vaachak.ui.highlights.AllHighlightsScreen
 import io.github.piyushdaiya.vaachak.ui.reader.ReaderScreen
 import io.github.piyushdaiya.vaachak.ui.reader.components.VaachakNavigationFooter
@@ -62,17 +65,16 @@ import io.github.piyushdaiya.vaachak.ui.settings.SettingsViewModel
 import io.github.piyushdaiya.vaachak.ui.theme.ThemeMode
 import io.github.piyushdaiya.vaachak.ui.theme.VaachakTheme
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
 import java.io.File
 import java.io.FileOutputStream
 import java.util.UUID
-import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.withTimeoutOrNull
 import java.util.zip.ZipFile
-import io.github.piyushdaiya.vaachak.ui.catalog.CatalogScreen
+
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
     private val settingsViewModel: SettingsViewModel by viewModels()
@@ -92,7 +94,10 @@ class MainActivity : AppCompatActivity() {
 
         // Handle "Open With" on cold start
         if (savedInstanceState == null) {
-            processExternalIntent(intent)
+            val intent = intent
+            if (intent?.action == Intent.ACTION_VIEW) {
+                processExternalIntent(intent)
+            }
         }
 
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -109,19 +114,37 @@ class MainActivity : AppCompatActivity() {
             ) {
                 VaachakTheme(themeMode = currentTheme, contrast = einkContrastValue) {
 
+                    // --- NAVIGATION STATE ---
                     var selectedTab by remember { mutableIntStateOf(0) }
+                    var isBrowsingCatalog by remember { mutableStateOf(false) } // Track Catalog Depth
+
                     var showSettingsOnHome by remember { mutableStateOf(false) }
                     var showSessionHistory by remember { mutableStateOf(false) }
 
                     var targetLocator by remember { mutableStateOf<String?>(null) }
                     var targetHighlightLocator by remember { mutableStateOf<String?>(null) }
 
-                    // Handle Back Press
-                    if (state.currentBookUri != null || showSettingsOnHome || showSessionHistory) {
+                    // --- GLOBAL BACK HANDLER ---
+                    val isReaderOpen = state.currentBookUri != null
+                    val isCatalogBrowserOpen = selectedTab == 3 && isBrowsingCatalog
+                    val isNotHomeTab = selectedTab != 0
+
+                    if (isReaderOpen || showSettingsOnHome || showSessionHistory || isCatalogBrowserOpen || isNotHomeTab) {
                         BackHandler {
-                            if (showSettingsOnHome) showSettingsOnHome = false
-                            else if (showSessionHistory) showSessionHistory = false
-                            else closeReader()
+                            when {
+                                showSettingsOnHome -> showSettingsOnHome = false
+                                showSessionHistory -> showSessionHistory = false
+                                isReaderOpen -> closeReader()
+
+                                // New Catalog Logic: Browser -> Manager
+                                isCatalogBrowserOpen -> isBrowsingCatalog = false
+
+                                // Tab Logic: Other Tabs -> Home
+                                isNotHomeTab -> {
+                                    selectedTab = 0
+                                    isBrowsingCatalog = false // Reset catalog state
+                                }
+                            }
                         }
                     }
 
@@ -141,7 +164,10 @@ class MainActivity : AppCompatActivity() {
                             Scaffold(
                                 bottomBar = {
                                     VaachakNavigationFooter(
-                                        onBookshelfClick = { selectedTab = 0 },
+                                        onBookshelfClick = {
+                                            selectedTab = 0
+                                            isBrowsingCatalog = false
+                                        },
                                         onHighlightsClick = { selectedTab = 1 },
                                         onAboutClick = { selectedTab = 2 },
                                         isEink = isEinkActive
@@ -158,12 +184,14 @@ class MainActivity : AppCompatActivity() {
                                             onBookClick = { uri -> openBook(uri) },
                                             onRecallClick = { showSessionHistory = true },
                                             onSettingsClick = { showSettingsOnHome = true },
-                                            // NEW: Handle Bookmark Clicks from the Bookshelf Sheet
                                             onBookmarkClick = { uri, locator ->
                                                 targetHighlightLocator = locator
                                                 openBook(uri)
                                             },
-                                            onCatalogClick = { selectedTab = 3 }
+                                            onCatalogClick = {
+                                                selectedTab = 3
+                                                isBrowsingCatalog = false // Always start at Manager
+                                            }
                                         )
 
                                         1 -> AllHighlightsScreen(
@@ -173,10 +201,29 @@ class MainActivity : AppCompatActivity() {
                                                 openBook(uri)
                                             }
                                         )
+
                                         2 -> AboutScreen(onBack = { selectedTab = 0 })
-                                        3 -> CatalogScreen(
-                                            onBack = { selectedTab = 0 }
-                                        )
+
+                                        // --- NEW CATALOG FLOW ---
+                                        3 -> {
+                                            if (isBrowsingCatalog) {
+                                                // View Books inside a Library
+                                                CatalogBrowserScreen(
+                                                    onBack = { isBrowsingCatalog = false },
+                                                    onReadBook = { uri -> openBook(uri) }, // NEW: Open Reader directly
+                                                    onGoToBookshelf = {
+                                                        selectedTab = 0 // NEW: Switch to Bookshelf Tab
+                                                        isBrowsingCatalog = false
+                                                    }
+                                                )
+                                            } else {
+                                                // Manage Libraries List
+                                                CatalogManagerScreen(
+                                                    onNavigateBack = { selectedTab = 0 },
+                                                    onCatalogSelected = { isBrowsingCatalog = true }
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -263,7 +310,6 @@ class MainActivity : AppCompatActivity() {
                         val tempTitle = withContext(Dispatchers.IO) { getEpubTitle(localFile) } ?: ""
 
                         // 3. WAIT for Library to Load (Fixes startup race condition)
-                        // We wait up to 2 seconds for the database to return results.
                         waitForDatabaseToLoad()
 
                         // 4. CHECK BOTH LISTS for duplicates

@@ -8,6 +8,7 @@ import io.github.piyushdaiya.vaachak.data.local.BookDao
 import io.github.piyushdaiya.vaachak.data.local.BookEntity
 import io.github.piyushdaiya.vaachak.ui.reader.ReadiumManager
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
@@ -23,6 +24,15 @@ class LibraryRepository @Inject constructor(
 
     suspend fun isBookDuplicate(title: String): Boolean {
         return bookDao.isBookExists(title)
+    }
+
+    // NEW: Returns Map<Title, UriString> to allow opening books from Catalog
+    suspend fun getLocalBookMap(): Map<String, String> = withContext(Dispatchers.IO) {
+        try {
+            bookDao.getAllBooksSortedByRecent().first().associate { it.title to it.uriString }
+        } catch (e: Exception) {
+            emptyMap()
+        }
     }
 
     /**

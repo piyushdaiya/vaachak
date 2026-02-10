@@ -20,32 +20,29 @@
  *  * SOFTWARE.
  */
 
-package io.github.piyushdaiya.vaachak.data.local
+package io.github.piyushdaiya.vaachak.data.remote
 
-import androidx.room.Dao
-import androidx.room.Delete
-import androidx.room.Insert
-import androidx.room.OnConflictStrategy
-import androidx.room.Query
-import androidx.room.Update
-import kotlinx.coroutines.flow.Flow
+import com.google.gson.annotations.SerializedName
 
-@Dao
-interface OpdsDao {
-    @Query("SELECT * FROM opds_feeds ORDER BY isPredefined DESC, title ASC")
-    fun getAllFeeds(): Flow<List<OpdsEntity>>
+// Response from https://gutendex.com/books
+data class GutendexResponse(
+    @SerializedName("count") val count: Int,
+    @SerializedName("next") val next: String?,
+    @SerializedName("previous") val previous: String?,
+    @SerializedName("results") val results: List<GutendexBook>
+)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertFeed(feed: OpdsEntity)
+data class GutendexBook(
+    @SerializedName("id") val id: Int,
+    @SerializedName("title") val title: String,
+    @SerializedName("authors") val authors: List<GutendexPerson>,
+    @SerializedName("formats") val formats: Map<String, String>,
+    @SerializedName("download_count") val downloadCount: Int
+)
 
-    @Delete
-    suspend fun deleteFeed(feed: OpdsEntity)
-
-    @Query("SELECT * FROM opds_feeds WHERE url = :url LIMIT 1")
-    suspend fun getFeedByUrl(url: String): OpdsEntity?
-
-    // --- ADD THIS FUNCTION ---
-    @Update
-    suspend fun updateFeed(feed: OpdsEntity)
-}
+data class GutendexPerson(
+    @SerializedName("name") val name: String,
+    @SerializedName("birth_year") val birthYear: Int?,
+    @SerializedName("death_year") val deathYear: Int?
+)
 

@@ -40,6 +40,15 @@ Vaachak fills this gap: a tool built by a reader, for readers.
 * **Local Privacy:** Your library and highlights remain stored locally on your device using Room Database.
 * **Secure API Configuration:** **Bring Your Own Keys (BYOK)**. No hardcoded secrets; keys are stored in encrypted DataStore preferences.
 
+###  🌐 Smart Catalog Browser:**
+* **Project Gutenberg Integration:** Seamlessly browse thousands of free books using the [Gutendex JSON API](https://gutendex.com/).
+* **OPDS Support:** Add custom OPDS feeds (e.g., ManyBooks, Calibre).
+* **Breadcrumb Navigation:** Easy deep-folder navigation with quick jump-back support.
+* **Library Detection:** Automatically detects if a book in the catalog is already downloaded and offers a "Read" button instead of "Download".
+
+### 💾 Local Library Management:
+* **Import EPUBs** from file storage
+* **"Open With"** from other apps.
 ## 🛠️ Tech Stack
 * **Language:** Kotlin / Java (Android)
 * **LLM Partner:** Google Gemini (used for pair programming, boilerplate generation, and API orchestration).
@@ -60,6 +69,12 @@ Vaachak is built using **Modern Android Development (MAD)** standards and **Clea
 * **AI Integration:**
   * **Text/Logic:** Google Gemini 1.5 Flash (via Gemini API).
   * **Image Generation:** Cloudflare Workers (Stable Diffusion XL Lightning).
+* **Project Gutenberg via Gutendex**
+  This app bypasses the complex RDF/XML parsing of standard [Gutenberg](https://gutendex.com/) feeds by utilizing the **Gutendex API**. 
+  * This provides:
+    - Faster search and category browsing.
+    - JSON-based responses for reliability.
+    - Support for [self-hosted Gutendex](https://github.com/garethbjohnson/gutendex) instances via the Catalog Manager URL.
 
 ### 📂 Project Structure
 * `ui/bookshelf`: Dashboard, library grid, and file import logic.
