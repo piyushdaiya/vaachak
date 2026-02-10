@@ -61,5 +61,9 @@ interface BookDao {
 
     @Query("SELECT * FROM books ORDER BY lastRead DESC LIMIT 1")
     fun getMostRecentBook(): Flow<BookEntity?>
+
+    // NEW: Check if a book with this TITLE exists (for OPDS duplicate check)
+    @Query("SELECT EXISTS(SELECT 1 FROM books WHERE title = :title LIMIT 1)")
+    suspend fun isBookExists(title: String): Boolean
 }
 

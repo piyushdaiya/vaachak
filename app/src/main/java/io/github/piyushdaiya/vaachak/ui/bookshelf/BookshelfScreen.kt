@@ -66,6 +66,7 @@ fun BookshelfScreen(
     onBookmarkClick: (String, String) -> Unit,
     onRecallClick: () -> Unit,
     onSettingsClick: () -> Unit,
+    onCatalogClick: () -> Unit,
     viewModel: BookshelfViewModel = hiltViewModel()
 ) {
     val allBooks by viewModel.allBooks.collectAsState()
@@ -101,6 +102,10 @@ fun BookshelfScreen(
                 isEink = isEink,
                 actions = {
                     if (!isOfflineMode) {
+                        // NEW: Catalog Button (Globe Icon)
+                        IconButton(onClick = onCatalogClick) {
+                            Icon(Icons.Default.Public, "Online Catalog", Modifier.size(22.dp))
+                        }
                         IconButton(onClick = onRecallClick) { Icon(Icons.Default.AutoAwesome, "Recall", Modifier.size(22.dp)) }
                     }
                     IconButton(onClick = onSettingsClick) { Icon(Icons.Default.Settings, "Settings", Modifier.size(22.dp)) }

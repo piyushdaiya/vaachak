@@ -39,4 +39,9 @@ caches/
 build/
 
 # Ignore full Gradle distributions (but keep the small wrapper jar)
-wrapper/dists/
+wrapper/dists/kotlin/
+daemon/
+android/
+native/
+AppConfig.example.kt
+.github/

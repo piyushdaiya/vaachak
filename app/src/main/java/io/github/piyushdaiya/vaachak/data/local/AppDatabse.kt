@@ -26,13 +26,36 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
-@Database(entities = [HighlightEntity::class, BookEntity::class], version = 7, exportSchema = false)
+@Database(entities = [HighlightEntity::class, BookEntity::class, OpdsEntity::class], version = 9, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun highlightDao(): HighlightDao
     abstract fun bookDao(): BookDao
-
+    abstract fun opdsDao(): OpdsDao // Add this
     companion object {
         const val DATABASE_NAME = "vaachak_db"
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // SQL to create the new table exactly as Room expects it
+                database.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `opds_feeds` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, 
+                        `title` TEXT NOT NULL, 
+                        `url` TEXT NOT NULL, 
+                        `username` TEXT, 
+                        `password` TEXT, 
+                        `isPredefined` INTEGER NOT NULL
+                    )
+                """.trimIndent()
+                )
+            }
+        }
+        // NEW Migration (2->3)
+        val MIGRATION_8_9= object : Migration(8,9) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // Add the new column with a default value of 0 (false)
+                database.execSQL("ALTER TABLE `opds_feeds` ADD COLUMN `allowInsecure` INTEGER NOT NULL DEFAULT 0")
+            }
+        }
     }
-
 }

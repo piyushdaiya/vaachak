@@ -37,6 +37,7 @@ import io.github.piyushdaiya.vaachak.data.local.AppDatabase
 import io.github.piyushdaiya.vaachak.data.local.BookDao
 import io.github.piyushdaiya.vaachak.data.local.HighlightDao
 import javax.inject.Singleton
+import io.github.piyushdaiya.vaachak.data.local.OpdsDao
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -51,7 +52,8 @@ object DatabaseModule {
             AppDatabase::class.java,
             AppDatabase.DATABASE_NAME
         )
-            .fallbackToDestructiveMigration()
+            .addMigrations(AppDatabase.MIGRATION_7_8)
+            .addMigrations(AppDatabase.MIGRATION_8_9)
             .build()
     }
 
@@ -65,6 +67,10 @@ object DatabaseModule {
     fun provideBookDao(database: AppDatabase): BookDao {
         return database.bookDao()
     }
+
+    // --- THIS IS THE MISSING PART CAUSING YOUR ERROR ---
+    @Provides
+    fun provideOpdsDao(db: AppDatabase): OpdsDao = db.opdsDao()
 
     // --- DATASTORE SETUP ---
     // This creates the single source of truth for "user_settings".

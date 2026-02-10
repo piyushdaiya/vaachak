@@ -35,6 +35,7 @@ import io.github.piyushdaiya.vaachak.data.local.HighlightDao
 import io.github.piyushdaiya.vaachak.data.local.HighlightEntity
 import io.github.piyushdaiya.vaachak.data.repository.AiRepository
 import io.github.piyushdaiya.vaachak.data.repository.SettingsRepository
+import io.github.piyushdaiya.vaachak.data.repository.LibraryRepository
 import io.github.piyushdaiya.vaachak.ui.reader.ReadiumManager
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
@@ -55,7 +56,7 @@ enum class SortOrder { TITLE, AUTHOR, DATE_ADDED }
 @HiltViewModel
 class BookshelfViewModel @Inject constructor(
     private val bookDao: BookDao,
-    private val readiumManager: ReadiumManager,
+    private val libraryRepository: LibraryRepository,
     private val highlightDao: HighlightDao,
     private val aiRepository: AiRepository,
     private val settingsRepo: SettingsRepository,
@@ -137,29 +138,17 @@ class BookshelfViewModel @Inject constructor(
     fun updateSearchQuery(query: String) { _searchQuery.value = query }
     fun updateSortOrder(order: SortOrder) { _sortOrder.value = order }
 
+    /**
+     * Imports a book using the shared LibraryRepository
+     */
     fun importBook(uri: Uri) {
         viewModelScope.launch {
-            if (allBooks.value.any { it.uriString == uri.toString() }) {
-                _snackbarMessage.value = "⚠️ Book is already in your library"
-                return@launch
+            val result = libraryRepository.importBook(uri)
+            result.onSuccess { msg ->
+                _snackbarMessage.value = msg
+            }.onFailure { e ->
+                _snackbarMessage.value = e.message ?: "Failed to import book"
             }
-            try { context.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: Exception) { }
-
-            val publication = readiumManager.openEpubFromUri(uri)
-            if (publication != null) {
-                val title = publication.metadata.title ?: "Unknown Title"
-                val author = publication.metadata.authors.firstOrNull()?.name ?: "Unknown Author"
-                var savedCoverPath: String? = null
-                try {
-                    val bitmap = readiumManager.getPublicationCover(publication)
-                    if (bitmap != null) savedCoverPath = saveCoverToInternalStorage(bitmap, title)
-                } catch (_: Exception) { }
-
-                val newBook = BookEntity(title = title, author = author, uriString = uri.toString(), coverPath = savedCoverPath, addedDate = System.currentTimeMillis(), lastRead = System.currentTimeMillis(), progress = 0.0)
-                bookDao.insertBook(newBook)
-                readiumManager.closePublication()
-                _snackbarMessage.value = "Book added successfully"
-            } else { _snackbarMessage.value = "Failed to parse book metadata" }
         }
     }
 

@@ -118,6 +118,13 @@ implementation(libs.androidx.foundation)
     implementation("androidx.activity:activity-compose:1.9.0")
     implementation("org.apache.commons:commons-compress:1.26.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.1")
+    // OPDS Support (Catalog parsing)
+    implementation("org.readium.kotlin-toolkit:readium-opds:3.1.2")
+
+    // LCP Support (DRM) - We will integrate this fully in the next step
+    implementation("org.readium.kotlin-toolkit:readium-lcp:3.1.2")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 }
 tasks.dokkaHtml {
     outputDirectory.set(buildDir.resolve("dokka"))

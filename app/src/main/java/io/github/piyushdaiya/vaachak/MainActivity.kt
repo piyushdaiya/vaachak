@@ -72,7 +72,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.zip.ZipFile
-
+import io.github.piyushdaiya.vaachak.ui.catalog.CatalogScreen
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
     private val settingsViewModel: SettingsViewModel by viewModels()
@@ -162,8 +162,10 @@ class MainActivity : AppCompatActivity() {
                                             onBookmarkClick = { uri, locator ->
                                                 targetHighlightLocator = locator
                                                 openBook(uri)
-                                            }
+                                            },
+                                            onCatalogClick = { selectedTab = 3 }
                                         )
+
                                         1 -> AllHighlightsScreen(
                                             onBack = { selectedTab = 0 },
                                             onHighlightClick = { uri, locator ->
@@ -172,6 +174,9 @@ class MainActivity : AppCompatActivity() {
                                             }
                                         )
                                         2 -> AboutScreen(onBack = { selectedTab = 0 })
+                                        3 -> CatalogScreen(
+                                            onBack = { selectedTab = 0 }
+                                        )
                                     }
                                 }
                             }
